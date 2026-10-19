@@ -109,7 +109,8 @@ h1 span { color: var(--green); }
 .last-updated .status-dot { width: 5px; height: 5px; }
 .profile-card { min-height: 118px; padding: 19px 23px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 6px; background: linear-gradient(100deg, rgba(25,30,27,.96), rgba(18,21,21,.96)); }
 .profile-main { display: flex; align-items: center; gap: 17px; min-width: 0; }
-.profile-avatar { width: 66px; height: 66px; border: 2px solid rgba(184,233,134,.48); border-radius: 50%; background: #292f2a; object-fit: cover; }
+.profile-avatar-frame { width: 66px; height: 66px; flex: 0 0 auto; overflow: hidden; border: 2px solid rgba(184,233,134,.48); border-radius: 50%; background-color: #292f2a; background-image: url("https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/invoker.png"); background-position: center; background-size: cover; }
+.profile-avatar { width: 100%; height: 100%; display: block; border-radius: inherit; background: #292f2a; object-fit: cover; object-position: center 20%; }
 .profile-name { min-width: 0; }
 .profile-kicker, .profile-rank > div > span { color: #848b82; font: 600 8px "Space Grotesk", sans-serif; letter-spacing: 1.15px; }
 .profile-name h2 { overflow: hidden; max-width: 440px; margin-top: 4px; font: 600 21px "Space Grotesk", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
@@ -194,7 +195,7 @@ h1 span { color: var(--green); }
   .dashboard-view { padding: 42px 20px 22px; }
   .dashboard-heading h1 { font-size: 40px; }
   .profile-card { min-height: 104px; padding: 15px; }
-  .profile-avatar { width: 54px; height: 54px; }
+  .profile-avatar-frame { width: 54px; height: 54px; }
   .profile-name h2 { max-width: 250px; font-size: 17px; }
   .profile-rank { min-width: 145px; gap: 7px; padding-left: 12px; }
   .profile-rank img { width: 38px; height: 38px; }
@@ -225,7 +226,7 @@ h1 span { color: var(--green); }
   .last-updated { gap: 5px; font-size: 6px; letter-spacing: .5px; }
   .profile-card { padding: 12px; }
   .profile-main { gap: 10px; }
-  .profile-avatar { width: 45px; height: 45px; }
+  .profile-avatar-frame { width: 45px; height: 45px; }
   .profile-name h2 { max-width: 150px; font-size: 14px; }
   .profile-kicker, .profile-rank > div > span { font-size: 6px; }
   .profile-name a { font-size: 9px; }
@@ -399,7 +400,7 @@ h1 span { color: var(--gold); }
   pointer-events: none;
 }
 .profile-main, .profile-rank { position: relative; z-index: 1; }
-.profile-avatar { border: 2px solid rgba(212, 174, 112, .63); box-shadow: 0 0 0 4px rgba(212,174,112,.07), 0 0 28px rgba(0,0,0,.35); }
+.profile-avatar-frame { border-color: rgba(212, 174, 112, .63); box-shadow: 0 0 0 4px rgba(212,174,112,.07), 0 0 28px rgba(0,0,0,.35); }
 .profile-kicker, .profile-rank > div > span { color: #b2a58e; }
 .profile-name h2 { color: #f1eadf; }
 .profile-name a { color: #a59a87; }

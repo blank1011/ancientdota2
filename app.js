@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const rankNames = ["Unranked", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
 const rankAssets = "https://www.opendota.com/assets/images/dota2/rank_icons";
+const invokerPortrait = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/invoker.png";
 const friendsStorageKey = "ancient-friends";
 const maxFriends = 12;
 let heroById = new Map();
@@ -10,6 +11,23 @@ let dashboardLoadingTimer;
 let itemNamesPromise;
 let itemNames = new Map();
 let activeMatchRequest = 0;
+
+function setProfileAvatar(source) {
+  const avatar = $("#avatar");
+  avatar.hidden = false;
+  avatar.dataset.fallback = source ? "false" : "true";
+  avatar.alt = source ? "Steam profile avatar" : "Invoker portrait placeholder";
+  avatar.src = source || invokerPortrait;
+}
+
+$("#avatar").addEventListener("error", (event) => {
+  const avatar = event.currentTarget;
+  if (avatar.dataset.fallback === "true") {
+    avatar.hidden = true;
+    return;
+  }
+  setProfileAvatar("");
+});
 
 function setLoginError(message) {
   const error = $("#login-error");
@@ -928,7 +946,7 @@ async function loadDashboard(accountId) {
     `https://api.opendota.com/api/players/${accountId}`,
     (profile) => {
       $("#player-name").textContent = profile.profile?.personaname || "Dota 2 player";
-      $("#avatar").src = profile.profile?.avatarfull || profile.profile?.avatar || "";
+      setProfileAvatar(profile.profile?.avatarfull || profile.profile?.avatar);
       $("#steam-profile").href = profile.profile?.profileurl || `https://steamcommunity.com/profiles/${accountId}`;
 
       const profileRankTier = validRankTier(profile.rank_tier);

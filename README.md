@@ -12,6 +12,8 @@ Steam sign-in uses Steam OpenID and is validated by the app server. The app does
 
 Dashboard profile, record, match history, and hero names load independently so a slow endpoint does not hold up the rest of the page. OpenDota requests time out after 12 seconds and show a retry option if data is unavailable.
 
+If the Steam profile avatar is missing or fails to load, the dashboard uses Dota 2 Invoker artwork as a fallback.
+
 The local server binds only to `127.0.0.1`. The sign-in callback uses that same address and port, so if you change `PORT`, open the app at the matching `http://127.0.0.1:<port>` URL.
 
 ## Deploy to Vercel

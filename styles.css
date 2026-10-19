@@ -122,6 +122,11 @@ h1 span { color: var(--green); }
 .profile-rank strong { font: 600 13px "Space Grotesk", sans-serif; }
 .profile-rank small { color: var(--green); font-size: 10px; }
 .notice { margin-top: 12px; padding: 11px 14px; border: 1px solid rgba(184,233,134,.18); border-radius: 4px; background: rgba(184,233,134,.045); color: #b6bdaf; font-size: 11px; line-height: 1.5; }
+.loading-notice { margin-top: 12px; padding: 10px 13px; border: 1px solid rgba(210,180,128,.13); border-radius: 3px; background: rgba(210,180,128,.035); color: #aaa08e; font-size: 10px; line-height: 1.5; }
+.loading-placeholder { min-width: 5ch; border-radius: 3px; color: transparent !important; background: linear-gradient(100deg, rgba(210,180,128,.08) 25%, rgba(210,180,128,.22) 45%, rgba(210,180,128,.08) 65%); background-size: 220% 100%; animation: loading-shimmer 1.5s ease-in-out infinite; }
+@keyframes loading-shimmer { to { background-position-x: -220%; } }
+.notice-retry { margin-left: 8px; padding: 4px 10px; border: 1px solid rgba(210,180,128,.35); border-radius: 3px; background: rgba(210,180,128,.08); color: #e3c99e; font: 600 9px "Space Grotesk", sans-serif; cursor: pointer; }
+.notice-retry:hover { border-color: var(--gold); background: rgba(210,180,128,.15); }
 .stats-grid { margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .stat-card { min-height: 142px; padding: 17px 19px 14px; border: 1px solid var(--line); border-radius: 5px; background: rgba(18,21,21,.92); }
 .stat-heading { display: flex; justify-content: space-between; align-items: center; }
@@ -158,6 +163,7 @@ h1 span { color: var(--green); }
 .kda-cell .deaths { color: #ef9c91; }
 .table-loading { height: 98px !important; color: #919790 !important; text-align: center; }
 .loading-spinner { width: 12px; height: 12px; margin-right: 8px; display: inline-block; vertical-align: -2px; border: 1px solid #545b51; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .loading-placeholder { animation: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-matches { height: 85px !important; color: #848a82 !important; text-align: center; }
 .matches-note { margin-top: 11px; color: #626962; font-size: 9px; }

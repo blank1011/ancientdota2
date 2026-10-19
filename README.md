@@ -10,6 +10,8 @@ A small, local Dota 2 companion for your Steam profile: rank, estimated MMR, win
 
 Steam sign-in uses Steam OpenID and is validated by the app server. The app does not ask for or store your Steam password. Public match and profile data is fetched from OpenDota. OpenDota may not have an MMR estimate, average rank, or per-minute replay timeline for every player or match; unavailable data is identified in the dashboard or match report.
 
+Dashboard profile, record, match history, and hero names load independently so a slow endpoint does not hold up the rest of the page. OpenDota requests time out after 12 seconds and show a retry option if data is unavailable.
+
 The local server binds only to `127.0.0.1`. The sign-in callback uses that same address and port, so if you change `PORT`, open the app at the matching `http://127.0.0.1:<port>` URL.
 
 ## Deploy to Vercel

@@ -1165,6 +1165,10 @@ $("#insight-hero-select").addEventListener("change", (event) => {
   if (Number.isInteger(heroId) && heroId > 0) loadHeroGuide(signedInAccountId, heroId, dashboardLoadId);
 });
 
+document.querySelector('.nav-link[href="#scout-report"]').addEventListener("click", () => {
+  $("#scout-report").open = true;
+});
+
 function showDashboard() {
   $("#welcome").hidden = true;
   $("#dashboard").hidden = false;

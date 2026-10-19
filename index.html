@@ -107,40 +107,6 @@
                 <div id="predicted-rank-caption" class="stat-caption"></div>
               </article>
             </div>
-            <section id="scout-report" class="scout-report" aria-labelledby="scout-report-title">
-              <div class="section-heading scout-heading">
-                <div><span class="eyebrow"><span class="eyebrow-line"></span> INTELLIGENCE BRIEFING</span><h2 id="scout-report-title">Scout report</h2></div>
-                <span class="scout-caption">PERSONAL STATS · OPENDOTA DATA</span>
-              </div>
-              <div class="scout-grid">
-                <article class="scout-card">
-                  <div class="scout-card-heading"><div><span class="scout-kicker">YOUR MOST PLAYED</span><h3>Hero performance</h3></div></div>
-                  <div id="hero-performance" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading hero records…</p></div>
-                </article>
-                <article class="scout-card">
-                  <div class="scout-card-heading"><div><span class="scout-kicker">MEDAL HISTORY</span><h3>Rank progress</h3></div></div>
-                  <div id="rank-history" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading rank history…</p></div>
-                </article>
-                <article class="scout-card">
-                  <div class="scout-card-heading"><div><span class="scout-kicker">WHO YOU QUEUE WITH</span><h3>Party chemistry</h3></div></div>
-                  <div id="party-chemistry" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading party stats…</p></div>
-                </article>
-                <article class="scout-card scout-hero-card">
-                  <div class="scout-card-heading scout-hero-heading">
-                    <div><span class="scout-kicker">MATCHUPS · BUILDS · BENCHMARKS</span><h3>Hero field guide</h3></div>
-                    <label class="hero-select-label" for="insight-hero-select">SELECT HERO
-                      <select id="insight-hero-select" aria-label="Select a hero for matchup and benchmark insights" disabled><option>Loading heroes…</option></select>
-                    </label>
-                  </div>
-                  <div class="hero-guide-grid">
-                    <section class="hero-guide-panel"><h4>Challenging matchups</h4><p class="scout-panel-note">Global stats across all players, not your personal matchup record.</p><div id="hero-matchups" class="scout-card-body"><p class="scout-loading">Choose a hero to explore matchups.</p></div></section>
-                    <section class="hero-guide-panel"><h4>Popular pro items</h4><div id="hero-builds" class="scout-card-body"><p class="scout-loading">Loading item trends…</p></div></section>
-                    <section class="hero-guide-panel"><h4>Performance goals</h4><div id="hero-benchmarks" class="scout-card-body"><p class="scout-loading">Loading benchmarks…</p></div></section>
-                  </div>
-                  <p class="scout-disclaimer">Builds use professional match data. Benchmarks compare your recent games with all-rank averages; neither guarantees results in your games.</p>
-                </article>
-              </div>
-            </section>
             <section id="matches-section" class="matches-section">
               <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><span id="matches-summary" class="match-count"></span></div>
               <div class="match-table-wrap">
@@ -153,26 +119,65 @@
             </section>
             <footer class="dashboard-footer"><span>GG, GLHF. <span class="footer-muted">Made for the love of the game.</span></span><span>DATA BY <a href="https://www.opendota.com/" target="_blank" rel="noopener noreferrer">OPENDOTA</a></span></footer>
           </div>
-          <aside class="party-panel" aria-labelledby="party-title">
-            <div class="party-heading">
-              <span class="eyebrow"><span class="eyebrow-line"></span> YOUR FIRETEAM</span>
-              <span id="party-count" class="party-count">0 / 12</span>
-            </div>
-            <h2 id="party-title">Party <span>roster</span></h2>
-            <p class="party-description">Keep your stack close. Add friends with their Steam ID to compare ranks and records.</p>
-            <form id="friend-form" class="friend-form">
-              <label for="friend-steam-id">STEAM ID</label>
-              <div class="friend-input-row">
-                <input id="friend-steam-id" name="steamId" type="text" inputmode="numeric" autocomplete="off" placeholder="32-bit or 64-bit ID" aria-describedby="friend-id-help friend-error" required>
-                <button type="submit" aria-label="Add friend" title="Add friend">+</button>
+          <aside class="dashboard-sidebar" aria-label="Party and player insights">
+            <section class="party-panel" aria-labelledby="party-title">
+              <div class="party-heading">
+                <span class="eyebrow"><span class="eyebrow-line"></span> YOUR FIRETEAM</span>
+                <span id="party-count" class="party-count">0 / 12</span>
               </div>
-              <span id="friend-id-help" class="friend-id-help">Their Dota profile must be public on OpenDota.</span>
-              <div id="friend-error" class="friend-error" role="alert" hidden></div>
-            </form>
-            <div id="friend-list" class="friend-list" aria-live="polite">
-              <div class="party-empty"><span class="party-empty-icon">♙</span><strong>Your party awaits.</strong><span>Add a friend’s Steam ID above to get started.</span></div>
-            </div>
-            <div class="party-footer"><span class="party-live-dot"></span> STORED IN THIS BROWSER ONLY</div>
+              <h2 id="party-title">Party <span>roster</span></h2>
+              <p class="party-description">Keep your stack close. Add friends with their Steam ID to compare ranks and records.</p>
+              <form id="friend-form" class="friend-form">
+                <label for="friend-steam-id">STEAM ID</label>
+                <div class="friend-input-row">
+                  <input id="friend-steam-id" name="steamId" type="text" inputmode="numeric" autocomplete="off" placeholder="32-bit or 64-bit ID" aria-describedby="friend-id-help friend-error" required>
+                  <button type="submit" aria-label="Add friend" title="Add friend">+</button>
+                </div>
+                <span id="friend-id-help" class="friend-id-help">Their Dota profile must be public on OpenDota.</span>
+                <div id="friend-error" class="friend-error" role="alert" hidden></div>
+              </form>
+              <div id="friend-list" class="friend-list" aria-live="polite">
+                <div class="party-empty"><span class="party-empty-icon">♙</span><strong>Your party awaits.</strong><span>Add a friend’s Steam ID above to get started.</span></div>
+              </div>
+              <div class="party-footer"><span class="party-live-dot"></span> STORED IN THIS BROWSER ONLY</div>
+            </section>
+            <details id="scout-report" class="scout-report">
+              <summary class="scout-report-summary">
+                <span class="scout-report-label"><span class="eyebrow"><span class="eyebrow-line"></span> INTELLIGENCE BRIEFING</span><strong>Scout report</strong></span>
+                <span class="scout-report-toggle" aria-hidden="true"></span>
+              </summary>
+              <div class="scout-report-content">
+                <div class="scout-caption">PERSONAL STATS · OPENDOTA DATA</div>
+                <div class="scout-grid">
+                  <article class="scout-card">
+                    <div class="scout-card-heading"><div><span class="scout-kicker">YOUR MOST PLAYED</span><h3>Hero performance</h3></div></div>
+                    <div id="hero-performance" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading hero records…</p></div>
+                  </article>
+                  <article class="scout-card">
+                    <div class="scout-card-heading"><div><span class="scout-kicker">MEDAL HISTORY</span><h3>Rank progress</h3></div></div>
+                    <div id="rank-history" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading rank history…</p></div>
+                  </article>
+                  <article class="scout-card">
+                    <div class="scout-card-heading"><div><span class="scout-kicker">WHO YOU QUEUE WITH</span><h3>Party chemistry</h3></div></div>
+                    <div id="party-chemistry" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading party stats…</p></div>
+                  </article>
+                  <article class="scout-card scout-hero-card">
+                    <div class="scout-card-heading scout-hero-heading">
+                      <div><span class="scout-kicker">MATCHUPS · BUILDS · BENCHMARKS</span><h3>Hero field guide</h3></div>
+                      <label class="hero-select-label" for="insight-hero-select">SELECT HERO
+                        <select id="insight-hero-select" aria-label="Select a hero for matchup and benchmark insights" disabled><option>Loading heroes…</option></select>
+                      </label>
+                    </div>
+                    <div class="hero-guide-grid">
+                      <section class="hero-guide-panel"><h4>Challenging matchups</h4><p class="scout-panel-note">Global stats across all players, not your personal matchup record.</p><div id="hero-matchups" class="scout-card-body"><p class="scout-loading">Choose a hero to explore matchups.</p></div></section>
+                      <section class="hero-guide-panel"><h4>Popular pro items</h4><div id="hero-builds" class="scout-card-body"><p class="scout-loading">Loading item trends…</p></div></section>
+                      <section class="hero-guide-panel"><h4>Performance goals</h4><div id="hero-benchmarks" class="scout-card-body"><p class="scout-loading">Loading benchmarks…</p></div></section>
+                    </div>
+                    <p class="scout-disclaimer">Builds use professional match data. Benchmarks compare your recent games with all-rank averages; neither guarantees results in your games.</p>
+                  </article>
+                </div>
+              </div>
+            </details>
           </aside>
         </div>
       </section>

@@ -11,6 +11,8 @@ let dashboardLoadingTimer;
 let itemNamesPromise;
 let itemNames = new Map();
 let activeMatchRequest = 0;
+let activeHeroGuideRequest = 0;
+let selectedInsightHeroId = null;
 
 function setProfileAvatar(source) {
   const avatar = $("#avatar");
@@ -35,13 +37,14 @@ function setLoginError(message) {
   error.hidden = false;
 }
 
-async function apiJson(url) {
+async function apiJson(url, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { ...options, signal: controller.signal });
     if (!response.ok) throw new Error(`OpenDota returned ${response.status}`);
-    return await response.json();
+    const body = await response.text();
+    return body ? JSON.parse(body) : null;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("OpenDota took too long to respond (12-second limit).");
     throw error;
@@ -843,6 +846,325 @@ function renderRecentForm(matches) {
   }
 }
 
+function setScoutMessage(selector, message, isError = false, retry) {
+  const container = $(selector);
+  container.replaceChildren();
+  const text = document.createElement("p");
+  text.className = isError ? "scout-error" : "scout-empty";
+  text.textContent = message;
+  container.append(text);
+  if (retry) {
+    const button = document.createElement("button");
+    button.className = "scout-retry";
+    button.type = "button";
+    button.textContent = "Retry";
+    button.addEventListener("click", retry, { once: true });
+    container.append(button);
+  }
+}
+
+function makeHeroImage(heroId, className = "scout-hero-image") {
+  const hero = heroById.get(Number(heroId));
+  if (!hero) return null;
+  const image = document.createElement("img");
+  image.className = className;
+  image.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${hero.name.replace("npc_dota_hero_", "")}.png`;
+  image.alt = "";
+  image.loading = "lazy";
+  return image;
+}
+
+function renderHeroPerformance(heroStats) {
+  const container = $("#hero-performance");
+  container.replaceChildren();
+  const topHeroes = [...heroStats]
+    .filter((entry) => Number(entry.games) > 0)
+    .sort((a, b) => Number(b.games) - Number(a.games))
+    .slice(0, 5);
+  if (!topHeroes.length) {
+    setScoutMessage("#hero-performance", "No recorded hero statistics were returned for this profile.");
+    return;
+  }
+
+  for (const entry of topHeroes) {
+    const hero = heroById.get(Number(entry.hero_id));
+    const games = Number(entry.games);
+    const wins = Number(entry.win) || 0;
+    const row = document.createElement("div");
+    row.className = "scout-hero-row";
+    const image = makeHeroImage(entry.hero_id);
+    if (image) row.append(image);
+    const name = document.createElement("span");
+    name.className = "scout-row-name";
+    name.textContent = hero?.localized_name || `Hero ${entry.hero_id}`;
+    const count = document.createElement("span");
+    count.className = "scout-row-meta";
+    count.textContent = `${formatNumber(games)} games`;
+    const rate = document.createElement("strong");
+    rate.className = `scout-row-rate${wins / games >= 0.5 ? " positive" : " negative"}`;
+    rate.textContent = `${Math.round((wins / games) * 100)}%`;
+    row.append(name, count, rate);
+    container.append(row);
+  }
+}
+
+function renderRankHistory(ratings) {
+  const container = $("#rank-history");
+  container.replaceChildren();
+  const history = (Array.isArray(ratings) ? ratings : [])
+    .filter((entry) => validRankTier(entry.rank_tier) && Number.isFinite(Number(entry.time)) && Number(entry.time) > 0)
+    .sort((a, b) => Number(b.time) - Number(a.time))
+    .filter((entry, index, entries) => index === 0 || Number(entry.rank_tier) !== Number(entries[index - 1].rank_tier))
+    .slice(0, 5);
+  if (!history.length) {
+    setScoutMessage("#rank-history", "OpenDota has no rank changes recorded for this profile yet.");
+    return;
+  }
+
+  for (const entry of history) {
+    const rank = rankDetails(entry.rank_tier);
+    const row = document.createElement("div");
+    row.className = "rank-history-row";
+    const image = document.createElement("img");
+    image.src = rank.image;
+    image.alt = "";
+    image.loading = "lazy";
+    const details = document.createElement("span");
+    details.className = "rank-history-name";
+    details.textContent = `${rank.name}${rank.stars ? ` · ${rank.stars}` : ""}`;
+    const date = document.createElement("time");
+    date.dateTime = new Date(Number(entry.time) * 1000).toISOString();
+    date.textContent = new Date(Number(entry.time) * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    row.append(image, details, date);
+    container.append(row);
+  }
+}
+
+function renderPartyChemistry(peers) {
+  const container = $("#party-chemistry");
+  container.replaceChildren();
+  const friendIds = new Set(readFriendIds());
+  const allies = (Array.isArray(peers) ? peers : [])
+    .filter((peer) => peer.account_id && Number(peer.games) > 0)
+    .sort((a, b) => Number(b.games) - Number(a.games));
+  const withFriends = allies.filter((peer) => friendIds.has(String(peer.account_id)));
+  const shown = withFriends.length ? withFriends.slice(0, 5) : allies.slice(0, 5);
+  if (!shown.length) {
+    setScoutMessage("#party-chemistry", "OpenDota has no party history available yet. Play matches with friends and check back.");
+    return;
+  }
+
+  const hint = document.createElement("p");
+  hint.className = "scout-inline-note";
+  hint.textContent = withFriends.length
+    ? "Friends from your roster who appear in your match history."
+    : friendIds.size
+      ? "Your roster friends have no shared matches in this data yet; showing your most frequent allies."
+      : "Add friends to your roster to highlight them in this history.";
+  container.append(hint);
+  for (const peer of shown) {
+    const row = document.createElement("div");
+    row.className = "scout-peer-row";
+    const name = document.createElement("span");
+    name.className = "scout-row-name";
+    name.textContent = peer.personaname || `Player ${peer.account_id}`;
+    const record = document.createElement("span");
+    record.className = "scout-row-meta";
+    record.textContent = `${formatNumber(Number(peer.games))} games · ${Math.round((Number(peer.win) / Number(peer.games)) * 100)}% together`;
+    if (friendIds.has(String(peer.account_id))) {
+      const badge = document.createElement("span");
+      badge.className = "party-match-badge";
+      badge.textContent = "PARTY";
+      row.append(badge);
+    }
+    row.append(name, record);
+    container.append(row);
+  }
+}
+
+function renderHeroOptions(heroStats) {
+  const select = $("#insight-hero-select");
+  const topHeroes = [...heroStats]
+    .filter((entry) => heroById.has(Number(entry.hero_id)))
+    .sort((a, b) => Number(b.games) - Number(a.games))
+    .slice(0, 30);
+  select.replaceChildren();
+  for (const entry of topHeroes) {
+    const option = document.createElement("option");
+    option.value = String(entry.hero_id);
+    option.textContent = heroById.get(Number(entry.hero_id)).localized_name;
+    select.append(option);
+  }
+  select.disabled = !topHeroes.length;
+  if (!topHeroes.length) {
+    setScoutMessage("#hero-matchups", "No hero data is available for matchup insights.");
+    setScoutMessage("#hero-builds", "No hero data is available for item insights.");
+    setScoutMessage("#hero-benchmarks", "No hero data is available for benchmarks.");
+    return;
+  }
+  selectedInsightHeroId = Number(topHeroes[0].hero_id);
+  select.value = String(selectedInsightHeroId);
+  loadHeroGuide(signedInAccountId, selectedInsightHeroId, dashboardLoadId);
+}
+
+function renderHeroMatchups(matchups) {
+  const container = $("#hero-matchups");
+  container.replaceChildren();
+  const toughest = (Array.isArray(matchups) ? matchups : [])
+    .filter((entry) => Number(entry.hero_id) !== selectedInsightHeroId && Number(entry.games_played) >= 10 && Number.isFinite(Number(entry.wins)))
+    .sort((a, b) => (Number(a.wins) / Number(a.games_played)) - (Number(b.wins) / Number(b.games_played)))
+    .slice(0, 5);
+  if (!toughest.length) {
+    setScoutMessage("#hero-matchups", "Not enough matchup data yet. OpenDota needs at least 10 sampled games per opponent.");
+    return;
+  }
+  for (const entry of toughest) {
+    const hero = heroById.get(Number(entry.hero_id));
+    const row = document.createElement("div");
+    row.className = "scout-matchup-row";
+    const image = makeHeroImage(entry.hero_id);
+    if (image) row.append(image);
+    const name = document.createElement("span");
+    name.className = "scout-row-name";
+    name.textContent = hero?.localized_name || `Hero ${entry.hero_id}`;
+    const rate = document.createElement("strong");
+    rate.className = "scout-row-rate negative";
+    rate.textContent = `${Math.round((Number(entry.wins) / Number(entry.games_played)) * 100)}%`;
+    rate.title = `${formatNumber(Number(entry.games_played))} sampled games`;
+    row.append(name, rate);
+    container.append(row);
+  }
+}
+
+function itemLabel(itemKey) {
+  const item = itemNames.get(Number(itemKey));
+  if (item) return item;
+  const name = String(itemKey).replaceAll("_", " ");
+  return { name: String(itemKey), displayName: name.replace(/\b\w/g, (letter) => letter.toUpperCase()) };
+}
+
+function renderHeroBuilds(popularity) {
+  const container = $("#hero-builds");
+  container.replaceChildren();
+  const stages = [
+    ["early_game_items", "EARLY"],
+    ["mid_game_items", "MID"],
+    ["late_game_items", "LATE"]
+  ];
+  let hasItems = false;
+  for (const [key, label] of stages) {
+    const rawItems = popularity?.[key];
+    const items = rawItems && typeof rawItems === "object"
+      ? Object.entries(rawItems).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3)
+      : [];
+    if (!items.length) continue;
+    hasItems = true;
+    const stage = document.createElement("div");
+    stage.className = "item-stage";
+    const title = document.createElement("span");
+    title.className = "item-stage-label";
+    title.textContent = label;
+    const list = document.createElement("div");
+    list.className = "item-stage-list";
+    for (const [itemKey] of items) {
+      const item = itemLabel(itemKey);
+      const entry = document.createElement("span");
+      entry.className = "item-trend";
+      const image = document.createElement("img");
+      image.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/${item.name}.png`;
+      image.alt = "";
+      image.loading = "lazy";
+      image.title = item.displayName;
+      image.addEventListener("error", () => image.remove(), { once: true });
+      const name = document.createElement("span");
+      name.textContent = item.displayName;
+      entry.append(image, name);
+      list.append(entry);
+    }
+    stage.append(title, list);
+    container.append(stage);
+  }
+  if (!hasItems) setScoutMessage("#hero-builds", "Professional item trends aren’t available for this hero yet.");
+}
+
+function renderHeroBenchmarks(matches, benchmarks) {
+  const container = $("#hero-benchmarks");
+  container.replaceChildren();
+  const metrics = [
+    { field: "gold_per_min", label: "GPM", percentileField: "gold_per_min", format: (value) => formatNumber(Math.round(value)) },
+    { field: "xp_per_min", label: "XPM", percentileField: "xp_per_min", format: (value) => formatNumber(Math.round(value)) },
+    { field: "last_hits", label: "LAST HITS / MIN", percentileField: "last_hits_per_min", format: (value) => value.toFixed(1) }
+  ];
+  let anyMetric = false;
+  for (const metric of metrics) {
+    const samples = (Array.isArray(matches) ? matches : [])
+      .filter((match) => Number.isFinite(Number(match[metric.field])) && Number(match.duration) > 0)
+      .slice(0, 20);
+    const points = benchmarks?.result?.[metric.percentileField];
+    if (!samples.length || !Array.isArray(points) || !points.length) continue;
+    anyMetric = true;
+    const average = samples.reduce((total, match) => {
+      const value = metric.field === "last_hits" ? Number(match.last_hits) / (Number(match.duration) / 60) : Number(match[metric.field]);
+      return total + value;
+    }, 0) / samples.length;
+    const sortedPoints = points
+      .filter((point) => Number.isFinite(Number(point.value)) && Number.isFinite(Number(point.percentile)))
+      .sort((a, b) => Number(a.percentile) - Number(b.percentile));
+    const surpassed = sortedPoints.filter((point) => average >= Number(point.value)).at(-1);
+    const percentile = surpassed ? `≥${Math.round(Number(surpassed.percentile))}th percentile` : `<${Math.round(Number(sortedPoints[0]?.percentile ?? 10))}th percentile`;
+    const nextGoal = sortedPoints.find((point) => Number(point.percentile) === 75) || sortedPoints.find((point) => Number(point.percentile) > Number(surpassed?.percentile ?? 0));
+    const row = document.createElement("div");
+    row.className = "benchmark-row";
+    const title = document.createElement("span");
+    title.className = "benchmark-label";
+    title.textContent = metric.label;
+    const value = document.createElement("strong");
+    value.textContent = `${metric.format(average)} · ${percentile}`;
+    const goal = document.createElement("span");
+    goal.className = "benchmark-goal";
+    goal.textContent = nextGoal ? `Next target: ${metric.format(Number(nextGoal.value))} (${Math.round(Number(nextGoal.percentile))}th percentile)` : "At the highest published benchmark";
+    row.append(title, value, goal);
+    container.append(row);
+  }
+  if (!anyMetric) {
+    setScoutMessage("#hero-benchmarks", "No recent stat samples or benchmark values are available for this hero yet.");
+  }
+}
+
+async function loadHeroGuide(accountId, heroId, loadId) {
+  const requestId = ++activeHeroGuideRequest;
+  selectedInsightHeroId = Number(heroId);
+  for (const selector of ["#hero-matchups", "#hero-builds", "#hero-benchmarks"]) {
+    setScoutMessage(selector, "Gathering OpenDota data…");
+  }
+  const base = "https://api.opendota.com/api";
+  const encodedAccount = encodeURIComponent(accountId);
+  const encodedHero = encodeURIComponent(heroId);
+  const results = await Promise.allSettled([
+    apiJson(`${base}/heroes/${encodedHero}/matchups`),
+    apiJson(`${base}/heroes/${encodedHero}/itemPopularity`),
+    apiJson(`${base}/benchmarks?hero_id=${encodedHero}`),
+    apiJson(`${base}/players/${encodedAccount}/matches?hero_id=${encodedHero}&limit=20`),
+    loadItemNames()
+  ]);
+  if (loadId !== dashboardLoadId || requestId !== activeHeroGuideRequest) return;
+  const [matchups, popularity, benchmarks, matches, items] = results;
+  if (matchups.status === "fulfilled") renderHeroMatchups(matchups.value);
+  else setScoutMessage("#hero-matchups", `Matchup data unavailable: ${matchups.reason.message}`, true, () => loadHeroGuide(accountId, heroId, loadId));
+  if (popularity.status === "fulfilled" && items.status === "fulfilled") renderHeroBuilds(popularity.value);
+  else setScoutMessage("#hero-builds", `Item trends unavailable: ${(popularity.status === "rejected" ? popularity.reason : items.reason).message}`, true, () => loadHeroGuide(accountId, heroId, loadId));
+  if (benchmarks.status === "fulfilled" && matches.status === "fulfilled") renderHeroBenchmarks(matches.value, benchmarks.value);
+  else {
+    const error = benchmarks.status === "rejected" ? benchmarks.reason : matches.reason;
+    setScoutMessage("#hero-benchmarks", `Performance comparison unavailable: ${error.message}`, true, () => loadHeroGuide(accountId, heroId, loadId));
+  }
+}
+
+$("#insight-hero-select").addEventListener("change", (event) => {
+  const heroId = Number(event.currentTarget.value);
+  if (Number.isInteger(heroId) && heroId > 0) loadHeroGuide(signedInAccountId, heroId, dashboardLoadId);
+});
+
 function showDashboard() {
   $("#welcome").hidden = true;
   $("#dashboard").hidden = false;
@@ -893,11 +1215,18 @@ async function loadDashboard(accountId) {
   clearTimeout(dashboardLoadingTimer);
   dashboardLoadingTimer = null;
   signedInAccountId = accountId;
+  heroById = new Map();
   showDashboard();
   renderFriends();
+  selectedInsightHeroId = null;
+  $("#insight-hero-select").disabled = true;
+  $("#insight-hero-select").replaceChildren(Object.assign(document.createElement("option"), { textContent: "Loading heroes…" }));
+  setScoutMessage("#hero-performance", "Loading hero records…");
+  setScoutMessage("#rank-history", "Loading rank history…");
+  setScoutMessage("#party-chemistry", "Loading party stats…");
   const errors = new Map();
-  const pending = new Set(["profile", "win/loss record", "recent matches", "hero names"]);
-  const results = { matches: null, ranked: null };
+  const pending = new Set(["profile", "win/loss record", "recent matches", "hero names", "hero performance", "rank history", "party chemistry"]);
+  const results = { matches: null, ranked: null, heroStats: null };
   const loadingNotice = $("#dashboard-loading");
   loadingNotice.textContent = "Connecting to OpenDota. Profile and match data will appear as each section finishes loading.";
   loadingNotice.hidden = false;
@@ -1018,14 +1347,71 @@ async function loadDashboard(accountId) {
     (heroes) => {
       heroById = new Map(heroes.map((hero) => [hero.id, hero]));
       if (results.matches) renderMatches(results.matches);
+      if (results.heroStats) {
+        renderHeroPerformance(results.heroStats);
+        renderHeroOptions(results.heroStats);
+      }
     },
     () => {
       if (results.matches) renderMatches(results.matches);
     }
   );
 
-  await Promise.all([profileRequest, recordRequest, matchesRequest, heroesRequest]);
+  const heroStatsRequest = request(
+    "hero performance",
+    `https://api.opendota.com/api/players/${accountId}/heroes`,
+    (heroStats) => {
+      results.heroStats = heroStats;
+      renderHeroPerformance(heroStats);
+      if (heroById.size) renderHeroOptions(heroStats);
+    },
+    (error) => {
+      setScoutMessage("#hero-performance", `Hero records unavailable: ${error.message}`);
+      setScoutMessage("#hero-matchups", "Hero insights need OpenDota hero history.");
+      setScoutMessage("#hero-builds", "Hero insights need OpenDota hero history.");
+      setScoutMessage("#hero-benchmarks", "Hero insights need OpenDota hero history.");
+    }
+  );
+
+  const ratingsRequest = request(
+    "rank history",
+    `https://api.opendota.com/api/players/${accountId}/ratings`,
+    renderRankHistory,
+    (error) => setScoutMessage("#rank-history", `Rank history unavailable: ${error.message}`)
+  );
+
+  const peersRequest = request(
+    "party chemistry",
+    `https://api.opendota.com/api/players/${accountId}/peers?limit=100`,
+    renderPartyChemistry,
+    (error) => setScoutMessage("#party-chemistry", `Party history unavailable: ${error.message}`)
+  );
+
+  await Promise.all([profileRequest, recordRequest, matchesRequest, heroesRequest, heroStatsRequest, ratingsRequest, peersRequest]);
 }
+
+async function syncRecentGames() {
+  const button = $("#sync-matches");
+  const status = $("#sync-status");
+  const accountId = signedInAccountId;
+  if (!accountId || button.disabled) return;
+  button.disabled = true;
+  button.textContent = "Requesting sync…";
+  status.textContent = "";
+  try {
+    await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/refresh`, { method: "POST" });
+    status.textContent = "Refresh requested. Checking recent data…";
+    await loadDashboard(accountId);
+    status.textContent = "OpenDota checked again. New games may take a few minutes to appear.";
+  } catch (error) {
+    status.textContent = `Could not sync recent games: ${error.message}`;
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<span aria-hidden="true">↻</span> Sync recent games';
+  }
+}
+
+$("#sync-matches").addEventListener("click", syncRecentGames);
 
 $("#friend-form").addEventListener("submit", async (event) => {
   event.preventDefault();

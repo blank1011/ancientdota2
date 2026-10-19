@@ -24,6 +24,7 @@
       </div>
       <nav class="dashboard-nav" aria-label="Dashboard navigation">
         <a class="nav-link nav-link-active" href="#dashboard">Overview</a>
+        <a class="nav-link nav-link-scout" href="#scout-report">Scout report</a>
         <a class="nav-link" href="#matches-section">Match history</a>
         <a class="nav-link nav-link-external" href="https://www.opendota.com/" target="_blank" rel="noopener noreferrer">OpenDota <span>↗</span></a>
       </nav>
@@ -78,7 +79,11 @@
       <section id="dashboard" class="dashboard-view" hidden>
         <div class="dashboard-heading">
           <div><span class="eyebrow"><span class="eyebrow-line"></span> PLAYER OVERVIEW</span><h1>Your <span>game.</span></h1></div>
-          <div class="last-updated"><span class="status-dot"></span> LIVE FROM OPENDOTA <span class="last-updated-divider">·</span> ACT I: THE BATTLEFIELD</div>
+          <div class="dashboard-heading-actions">
+            <div id="sync-status" class="sync-status" role="status" aria-live="polite"></div>
+            <button id="sync-matches" class="sync-button" type="button"><span aria-hidden="true">↻</span> Sync recent games</button>
+            <div class="last-updated"><span class="status-dot"></span> LIVE FROM OPENDOTA <span class="last-updated-divider">·</span> ACT I: THE BATTLEFIELD</div>
+          </div>
         </div>
         <div class="dashboard-layout">
           <div class="dashboard-main">
@@ -102,6 +107,40 @@
                 <div id="predicted-rank-caption" class="stat-caption"></div>
               </article>
             </div>
+            <section id="scout-report" class="scout-report" aria-labelledby="scout-report-title">
+              <div class="section-heading scout-heading">
+                <div><span class="eyebrow"><span class="eyebrow-line"></span> INTELLIGENCE BRIEFING</span><h2 id="scout-report-title">Scout report</h2></div>
+                <span class="scout-caption">PERSONAL STATS · OPENDOTA DATA</span>
+              </div>
+              <div class="scout-grid">
+                <article class="scout-card">
+                  <div class="scout-card-heading"><div><span class="scout-kicker">YOUR MOST PLAYED</span><h3>Hero performance</h3></div></div>
+                  <div id="hero-performance" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading hero records…</p></div>
+                </article>
+                <article class="scout-card">
+                  <div class="scout-card-heading"><div><span class="scout-kicker">MEDAL HISTORY</span><h3>Rank progress</h3></div></div>
+                  <div id="rank-history" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading rank history…</p></div>
+                </article>
+                <article class="scout-card">
+                  <div class="scout-card-heading"><div><span class="scout-kicker">WHO YOU QUEUE WITH</span><h3>Party chemistry</h3></div></div>
+                  <div id="party-chemistry" class="scout-card-body" aria-live="polite"><p class="scout-loading">Loading party stats…</p></div>
+                </article>
+                <article class="scout-card scout-hero-card">
+                  <div class="scout-card-heading scout-hero-heading">
+                    <div><span class="scout-kicker">MATCHUPS · BUILDS · BENCHMARKS</span><h3>Hero field guide</h3></div>
+                    <label class="hero-select-label" for="insight-hero-select">SELECT HERO
+                      <select id="insight-hero-select" aria-label="Select a hero for matchup and benchmark insights" disabled><option>Loading heroes…</option></select>
+                    </label>
+                  </div>
+                  <div class="hero-guide-grid">
+                    <section class="hero-guide-panel"><h4>Challenging matchups</h4><p class="scout-panel-note">Global stats across all players, not your personal matchup record.</p><div id="hero-matchups" class="scout-card-body"><p class="scout-loading">Choose a hero to explore matchups.</p></div></section>
+                    <section class="hero-guide-panel"><h4>Popular pro items</h4><div id="hero-builds" class="scout-card-body"><p class="scout-loading">Loading item trends…</p></div></section>
+                    <section class="hero-guide-panel"><h4>Performance goals</h4><div id="hero-benchmarks" class="scout-card-body"><p class="scout-loading">Loading benchmarks…</p></div></section>
+                  </div>
+                  <p class="scout-disclaimer">Builds use professional match data. Benchmarks compare your recent games with all-rank averages; neither guarantees results in your games.</p>
+                </article>
+              </div>
+            </section>
             <section id="matches-section" class="matches-section">
               <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><span id="matches-summary" class="match-count"></span></div>
               <div class="match-table-wrap">

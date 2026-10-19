@@ -1,6 +1,8 @@
 # Ancient
 
-A small, local Dota 2 companion for your Steam profile: rank, estimated MMR, win rate, and recent matches with hero and match-rank icons. Unranked profiles may also see a predicted rank based on a recency-weighted average of medal-star steps from recorded match-average ranks in up to 20 recent games. It requires at least five matches with rank data and is explicitly an estimate, not a confirmed personal rank. Select a match to open its full battle report, including both teams, player heroes, inventories, K/D/A, last hits, net worth, GPM, and XPM. Where OpenDota includes replay timeline data, the report also plots team net-worth, experience, and gold advantages per minute.
+A small Dota 2 companion for your Steam profile: rank, estimated MMR, win rate, recent matches, and a scout report with your hero records, rank history, party history, hero matchups, professional item trends, and performance benchmarks. The scout report is based on public OpenDota data and may be incomplete when profile or match data is unavailable. The hero field guide compares recent personal stats with all-rank benchmarks; professional builds and matchup statistics are contextual references, not predictions.
+
+Unranked profiles may also see a predicted rank based on a recency-weighted average of medal-star steps from recorded match-average ranks in up to 20 recent games. It requires at least five matches with rank data and is explicitly an estimate, not a confirmed personal rank. Use **Sync recent games** to ask OpenDota to refresh a profile and reload its data; newly played matches may take a few minutes to appear. Select a match to open its full battle report, including both teams, player heroes, inventories, K/D/A, last hits, net worth, GPM, and XPM. Where OpenDota includes replay timeline data, the report also plots team net-worth, experience, and gold advantages per minute.
 
 ## Run locally
 
@@ -10,7 +12,7 @@ A small, local Dota 2 companion for your Steam profile: rank, estimated MMR, win
 
 Steam sign-in uses Steam OpenID and is validated by the app server. The app does not ask for or store your Steam password. Public match and profile data is fetched from OpenDota. OpenDota may not have an MMR estimate, average rank, or per-minute replay timeline for every player or match; unavailable data is identified in the dashboard or match report.
 
-Dashboard profile, record, match history, and hero names load independently so a slow endpoint does not hold up the rest of the page. OpenDota requests time out after 12 seconds and show a retry option if data is unavailable.
+Dashboard profile, record, match history, hero names, and scout-report sections load independently so a slow endpoint does not hold up the rest of the page. Hero matchups, pro item trends, and benchmarks update when a different hero is selected. OpenDota requests time out after 12 seconds and show a retry option if data is unavailable.
 
 If the Steam profile avatar is missing or fails to load, the dashboard uses Dota 2 Invoker artwork as a fallback.
 
@@ -27,4 +29,4 @@ The Steam callback is generated from the public site origin. `APP_URL` is recomm
 
 ## Privacy
 
-The Steam OpenID assertion is verified server-side. The account ID is stored only inside a signed, HttpOnly cookie; no profile or match data is written by the app. On Vercel, `SESSION_SECRET` signs short-lived OpenID state and 24-hour sessions. The friend list is stored in your browser's local storage and is not sent to the app server. Match and profile requests go directly from your browser to the public OpenDota API. Friends need a public OpenDota profile for their stats to appear.
+The Steam OpenID assertion is verified server-side. The account ID is stored only inside a signed, HttpOnly cookie; no profile or match data is written by the app. On Vercel, `SESSION_SECRET` signs short-lived OpenID state and 24-hour sessions. The friend list is stored in your browser's local storage and is not sent to the app server. Match, profile, and scout-report requests go directly from your browser to the public OpenDota API. Friends need a public OpenDota profile for their stats to appear.

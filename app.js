@@ -873,6 +873,7 @@ function renderMatchesError() {
 async function loadDashboard(accountId) {
   const loadId = ++dashboardLoadId;
   clearTimeout(dashboardLoadingTimer);
+  dashboardLoadingTimer = null;
   signedInAccountId = accountId;
   showDashboard();
   renderFriends();

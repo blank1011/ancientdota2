@@ -15,7 +15,7 @@ The local server binds only to `127.0.0.1`. The sign-in callback uses that same 
 ## Deploy to Vercel
 
 1. Push this repository to GitHub and import it in Vercel. No build command or third-party packages are required: Vercel serves the static dashboard and the Python functions in `api/auth/`.
-2. In the Vercel project's **Settings → Environment Variables**, add `SESSION_SECRET` as a **Secret** for Production and Preview. Generate a fresh value locally with `py -c "import secrets; print(secrets.token_urlsafe(48))"` (or `python3 -c ...`). Do not commit this value or expose it in a `NEXT_PUBLIC_` variable.
+2. In the Vercel project's **Settings → Environment Variables**, add `SESSION_SECRET` as a **Secret** for Production and Preview. Generate a fresh value locally with `py -c "import secrets; print(secrets.token_urlsafe(48))"` on Windows or `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` on macOS/Linux. Do not commit this value or expose it in a `NEXT_PUBLIC_` variable.
 3. After the first deployment, add `APP_URL` as a **Config** environment variable for Production using the site's canonical HTTPS origin, for example `https://ancientdota2.vercel.app` (no path). For Preview, leave it unset to use Vercel's preview host, or set it to that environment's canonical HTTPS domain.
 4. Redeploy after adding or changing environment variables. Open the deployment and use **Sign in with Steam**.
 

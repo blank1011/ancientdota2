@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b0d0f">
+    <title>Ancient — your Dota, at a glance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Ancient home">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span>ANCIENT<span class="brand-period">.</span></span>
+      </a>
+      <nav class="dashboard-nav" aria-label="Dashboard navigation">
+        <a class="nav-link nav-link-active" href="#dashboard">Overview</a>
+        <a class="nav-link" href="#matches-section">Match history</a>
+        <a class="nav-link nav-link-external" href="https://www.opendota.com/" target="_blank" rel="noopener noreferrer">OpenDota <span>↗</span></a>
+      </nav>
+      <div class="topbar-right">
+        <span class="status-dot"></span>
+        <span class="status-label">DOTA 2 COMPANION</span>
+        <button id="signout" class="signout-button" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="welcome" class="welcome-view">
+        <div class="welcome-copy">
+          <span class="eyebrow"><span class="eyebrow-line"></span> YOUR MATCHES. YOUR MILESTONES.</span>
+          <h1>Every game tells<br>a <span>story.</span></h1>
+          <p class="welcome-description">A personal home for your Dota 2 journey. Keep your rank, match history, and hard-earned wins close — no noise, just your game.</p>
+          <button id="steam-login" class="steam-button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-9.95 9.04l5.37 2.22a2.8 2.8 0 0 1 1.58-.49c.1 0 .2 0 .3.02l2.4-3.48v-.05a3.73 3.73 0 1 1 3.73 3.73h-.09l-3.42 2.44a2.82 2.82 0 0 1-5.6.55l-3.84-1.59A10 10 0 1 0 12 2Zm-3.4 15.24-.91-.38a2.14 2.14 0 0 0 3.98-.83c0-.07 0-.14-.01-.21a2.13 2.13 0 0 0-3.8-1.28l.94.39a1.57 1.57 0 1 1-.2 2.31Zm8.4-5.42a2.49 2.49 0 1 0 0-4.98 2.49 2.49 0 0 0 0 4.98Zm0-.62a1.87 1.87 0 1 1 0-3.74 1.87 1.87 0 0 1 0 3.74Z"/></svg>
+            <span>Sign in through Steam</span>
+            <span class="button-arrow">↗</span>
+          </button>
+          <div class="privacy-note"><span class="lock-icon">⌑</span> Secure Steam sign-in <span class="note-divider">·</span> We never see your password</div>
+          <div id="login-error" class="inline-error" role="alert" hidden></div>
+        </div>
+        <div class="preview-area" aria-label="Preview of the Dota dashboard">
+          <div class="preview-glow"></div>
+          <div class="preview-card">
+            <div class="preview-topline"><span>PLAYER OVERVIEW</span><span class="live-pill"><i></i> YOUR DASHBOARD</span></div>
+            <div class="preview-player">
+              <div class="preview-avatar"><span class="avatar-initial">?</span><span class="avatar-online"></span></div>
+              <div class="preview-player-name"><strong>Your Dota profile</strong><span>Ready when you are</span></div>
+              <div class="preview-rank"><img src="https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_0.png" alt=""><span>—</span></div>
+            </div>
+            <div class="preview-rule"></div>
+            <div class="preview-metrics">
+              <div><span>WIN RATE</span><strong>—<small>%</small></strong><div class="metric-placeholder"></div></div>
+              <div><span>GAMES PLAYED</span><strong>—</strong><div class="metric-placeholder short"></div></div>
+              <div><span>EST. MMR</span><strong>—</strong><div class="metric-placeholder"></div></div>
+            </div>
+            <div class="preview-history-head"><span>RECENT MATCHES</span><span>LAST 5 GAMES</span></div>
+            <div class="preview-match"><span class="match-mark win"></span><span class="match-hero hero-one"></span><span class="match-hero-name">Your recent games</span><span class="match-kda">— / — / —</span><span class="match-result win-text">—</span></div>
+            <div class="preview-match"><span class="match-mark loss"></span><span class="match-hero hero-two"></span><span class="match-hero-name">Ranked &amp; unranked</span><span class="match-kda">— / — / —</span><span class="match-result loss-text">—</span></div>
+            <div class="preview-match"><span class="match-mark win"></span><span class="match-hero hero-three"></span><span class="match-hero-name">With your rank icons</span><span class="match-kda">— / — / —</span><span class="match-result win-text">—</span></div>
+            <div class="preview-foot"><span class="foot-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>MADE FOR YOUR PARTY</span></div>
+          </div>
+          <div class="floating-label label-top"><span class="label-spark">✳</span> YOUR STATS, FINALLY TOGETHER</div>
+          <div class="floating-label label-bottom"><span class="label-dot"></span> PRIVATE BY DESIGN</div>
+        </div>
+        <div class="welcome-bottom"><span>BUILT FOR THE LOVE OF THE GAME</span><span>POWERED BY OPENDOTA <span class="bottom-separator">/</span> STEAM</span></div>
+      </section>
+
+      <section id="dashboard" class="dashboard-view" hidden>
+        <div class="dashboard-heading">
+          <div><span class="eyebrow"><span class="eyebrow-line"></span> PLAYER OVERVIEW</span><h1>Your <span>game.</span></h1></div>
+          <div class="last-updated"><span class="status-dot"></span> LIVE FROM OPENDOTA <span class="last-updated-divider">·</span> ACT I: THE BATTLEFIELD</div>
+        </div>
+        <div class="dashboard-layout">
+          <div class="dashboard-main">
+            <div class="profile-card">
+              <div class="profile-main">
+                <img id="avatar" class="profile-avatar" src="" alt="Steam profile avatar">
+                <div class="profile-name"><span class="profile-kicker">WELCOME BACK</span><h2 id="player-name">Loading profile…</h2><a id="steam-profile" href="#" target="_blank" rel="noopener noreferrer">View Steam profile <span>↗</span></a></div>
+              </div>
+              <div class="profile-rank"><img id="rank-icon" src="https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_0.png" alt=""><div><span>COMPETITIVE RANK</span><strong id="rank-name">Unranked</strong><small id="rank-stars"></small></div></div>
+            </div>
+            <div id="dashboard-error" class="notice" role="status" hidden></div>
+            <div class="stats-grid">
+              <article class="stat-card winrate-card"><div class="stat-heading"><span>WIN RATE</span><span class="stat-icon">↗</span></div><strong id="winrate">—<small>%</small></strong><div class="winrate-bottom"><span id="win-loss">Loading record…</span><div class="winrate-track"><i id="winrate-bar"></i></div></div></article>
+              <article class="stat-card"><div class="stat-heading"><span>ESTIMATED MMR</span><span class="stat-icon">◎</span></div><strong id="mmr">—</strong><div id="mmr-caption" class="stat-caption">OpenDota estimate</div></article>
+              <article class="stat-card"><div class="stat-heading"><span>MATCHES PLAYED</span><span class="stat-icon">◷</span></div><strong id="matches-count">—</strong><div class="stat-caption">All-time recorded matches</div></article>
+              <article class="stat-card form-card"><div class="stat-heading"><span>RECENT FORM</span><span class="stat-icon">✳</span></div><strong id="recent-form-summary">—</strong><div id="recent-form" class="form-marks" aria-label="Results of your last five matches"></div></article>
+              <article id="predicted-rank-card" class="stat-card predicted-rank-card" hidden>
+                <div class="stat-heading"><span>PREDICTED RANK</span><span class="stat-icon" aria-hidden="true">≈</span></div>
+                <div class="predicted-rank-value"><img id="predicted-rank-icon" alt="" hidden><strong id="predicted-rank-name">—</strong></div>
+                <div id="predicted-rank-caption" class="stat-caption"></div>
+              </article>
+            </div>
+            <section id="matches-section" class="matches-section">
+              <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><span id="matches-summary" class="match-count"></span></div>
+              <div class="match-table-wrap">
+                <table class="match-table">
+                  <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
+                  <tbody id="matches-body"><tr><td class="table-loading" colspan="6"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
+                </table>
+              </div>
+              <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. “Not provided” means OpenDota has no rank for that match; we don’t guess.</div>
+            </section>
+            <footer class="dashboard-footer"><span>GG, GLHF. <span class="footer-muted">Made for the love of the game.</span></span><span>DATA BY <a href="https://www.opendota.com/" target="_blank" rel="noopener noreferrer">OPENDOTA</a></span></footer>
+          </div>
+          <aside class="party-panel" aria-labelledby="party-title">
+            <div class="party-heading">
+              <span class="eyebrow"><span class="eyebrow-line"></span> YOUR FIRETEAM</span>
+              <span id="party-count" class="party-count">0 / 12</span>
+            </div>
+            <h2 id="party-title">Party <span>roster</span></h2>
+            <p class="party-description">Keep your stack close. Add friends with their Steam ID to compare ranks and records.</p>
+            <form id="friend-form" class="friend-form">
+              <label for="friend-steam-id">STEAM ID</label>
+              <div class="friend-input-row">
+                <input id="friend-steam-id" name="steamId" type="text" inputmode="numeric" autocomplete="off" placeholder="32-bit or 64-bit ID" aria-describedby="friend-id-help friend-error" required>
+                <button type="submit" aria-label="Add friend" title="Add friend">+</button>
+              </div>
+              <span id="friend-id-help" class="friend-id-help">Their Dota profile must be public on OpenDota.</span>
+              <div id="friend-error" class="friend-error" role="alert" hidden></div>
+            </form>
+            <div id="friend-list" class="friend-list" aria-live="polite">
+              <div class="party-empty"><span class="party-empty-icon">♙</span><strong>Your party awaits.</strong><span>Add a friend’s Steam ID above to get started.</span></div>
+            </div>
+            <div class="party-footer"><span class="party-live-dot"></span> STORED IN THIS BROWSER ONLY</div>
+          </aside>
+        </div>
+      </section>
+      <dialog id="match-dialog" class="match-dialog" aria-labelledby="match-dialog-title">
+        <div class="match-dialog-frame">
+          <header class="match-dialog-header">
+            <div>
+              <span class="eyebrow"><span class="eyebrow-line"></span> BATTLE REPORT</span>
+              <h2 id="match-dialog-title">Match details</h2>
+            </div>
+            <button id="match-dialog-close" class="match-dialog-close" type="button" aria-label="Close match details">×</button>
+          </header>
+          <div id="match-dialog-content" class="match-dialog-content"></div>
+        </div>
+      </dialog>
+    </main>
+  </body>
+</html>

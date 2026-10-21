@@ -13,6 +13,16 @@ let itemNames = new Map();
 let activeMatchRequest = 0;
 let activeHeroGuideRequest = 0;
 let selectedInsightHeroId = null;
+let historyMatches = null;
+let historyLoaded = false;
+let historyRequestId = 0;
+let activePage = "overview";
+const pageDetails = {
+  overview: { eyebrow: "PLAYER OVERVIEW", title: "Your game." },
+  matches: { eyebrow: "THE BATTLEFIELD", title: "Match history" },
+  scout: { eyebrow: "INTELLIGENCE BRIEFING", title: "Scout report" },
+  party: { eyebrow: "YOUR FIRETEAM", title: "Party roster" }
+};
 
 function setProfileAvatar(source) {
   const avatar = $("#avatar");
@@ -721,16 +731,17 @@ async function openMatchDetails(matchId) {
   }
 }
 
-function renderMatches(matches) {
-  const body = $("#matches-body");
+function renderMatches(matches, bodySelector = "#matches-body", summarySelector = "#history-summary") {
+  const body = $(bodySelector);
   body.replaceChildren();
-  $("#matches-summary").textContent = `${matches.length} RECENT GAMES`;
+  const summary = $(summarySelector);
+  if (summary) summary.textContent = `${matches.length} ${matches.length === 1 ? "GAME" : "GAMES"}`;
   if (!matches.length) {
     const row = body.insertRow();
     const cell = row.insertCell();
     cell.colSpan = 6;
     cell.className = "empty-matches";
-    cell.textContent = "No recent matches found for this profile.";
+    cell.textContent = "No matches found for these filters.";
     return;
   }
 
@@ -798,18 +809,20 @@ function renderMatches(matches) {
   }
 }
 
-$("#matches-body").addEventListener("click", (event) => {
-  const row = event.target.closest("tr[data-match-id]");
-  if (row) openMatchDetails(row.dataset.matchId);
-});
+for (const body of document.querySelectorAll(".match-table-body")) {
+  body.addEventListener("click", (event) => {
+    const row = event.target.closest("tr[data-match-id]");
+    if (row) openMatchDetails(row.dataset.matchId);
+  });
 
-$("#matches-body").addEventListener("keydown", (event) => {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  const row = event.target.closest("tr[data-match-id]");
-  if (!row) return;
-  event.preventDefault();
-  openMatchDetails(row.dataset.matchId);
-});
+  body.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const row = event.target.closest("tr[data-match-id]");
+    if (!row) return;
+    event.preventDefault();
+    openMatchDetails(row.dataset.matchId);
+  });
+}
 
 $("#match-dialog-close").addEventListener("click", () => $("#match-dialog").close());
 $("#match-dialog").addEventListener("click", (event) => {
@@ -1165,15 +1178,119 @@ $("#insight-hero-select").addEventListener("change", (event) => {
   if (Number.isInteger(heroId) && heroId > 0) loadHeroGuide(signedInAccountId, heroId, dashboardLoadId);
 });
 
-document.querySelector('.nav-link[href="#scout-report"]').addEventListener("click", () => {
-  $("#scout-report").open = true;
+function renderHistoryMatches() {
+  if (!Array.isArray(historyMatches)) return;
+  const result = $("#history-result-filter").value;
+  const heroId = $("#history-hero-filter").value;
+  const filtered = historyMatches.filter((match) => {
+    const won = match.radiant_win === (match.player_slot < 128);
+    return (result === "all" || (result === "win" && won) || (result === "loss" && !won))
+      && (heroId === "all" || String(match.hero_id) === heroId);
+  });
+  renderMatches(filtered);
+  $("#history-note").textContent = `Showing ${filtered.length} of ${historyMatches.length} games returned by OpenDota.`;
+}
+
+function populateHistoryHeroFilter() {
+  const select = $("#history-hero-filter");
+  const selected = select.value;
+  select.replaceChildren(new Option("All heroes", "all"));
+  const heroes = [...heroById.values()].sort((a, b) => a.localized_name.localeCompare(b.localized_name));
+  for (const hero of heroes) select.add(new Option(hero.localized_name, String(hero.id)));
+  select.value = [...select.options].some((option) => option.value === selected) ? selected : "all";
+  renderHistoryMatches();
+}
+
+async function loadMatchHistory() {
+  if (historyLoaded) {
+    renderHistoryMatches();
+    return;
+  }
+  const requestId = ++historyRequestId;
+  const dashboardId = dashboardLoadId;
+  const body = $("#matches-body");
+  body.replaceChildren();
+  const row = body.insertRow();
+  const cell = row.insertCell();
+  cell.colSpan = 6;
+  cell.className = "table-loading";
+  cell.innerHTML = '<span class="loading-spinner"></span> Calling your latest battles…';
+  $("#history-summary").textContent = "LOADING";
+  try {
+    const matches = await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(signedInAccountId)}/matches?limit=100`);
+    if (dashboardId !== dashboardLoadId || requestId !== historyRequestId) return;
+    historyMatches = Array.isArray(matches) ? matches : [];
+    historyLoaded = true;
+    renderHistoryMatches();
+  } catch (error) {
+    if (dashboardId !== dashboardLoadId || requestId !== historyRequestId) return;
+    body.replaceChildren();
+    const errorRow = body.insertRow();
+    const errorCell = errorRow.insertCell();
+    errorCell.colSpan = 6;
+    errorCell.className = "empty-matches";
+    errorCell.textContent = `Match history couldn't be loaded: ${error.message}.`;
+    $("#history-summary").textContent = "";
+    const retry = document.createElement("button");
+    retry.className = "scout-retry";
+    retry.type = "button";
+    retry.textContent = "Retry";
+    retry.addEventListener("click", () => {
+      historyLoaded = false;
+      loadMatchHistory();
+    }, { once: true });
+    errorCell.append(" ", retry);
+  }
+}
+
+function setActivePage(page) {
+  activePage = pageDetails[page] ? page : "overview";
+  for (const section of document.querySelectorAll("[data-page-content]")) {
+    section.hidden = section.dataset.pageContent !== activePage;
+  }
+  for (const link of document.querySelectorAll(".nav-link[data-page]")) {
+    const selected = link.dataset.page === activePage;
+    link.classList.toggle("nav-link-active", selected);
+    if (selected) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+  $("#page-eyebrow").textContent = pageDetails[activePage].eyebrow;
+  $("#page-title").textContent = pageDetails[activePage].title;
+  if (activePage === "matches") loadMatchHistory();
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function readPageFromHash() {
+  const page = location.hash.slice(1);
+  if (!pageDetails[page]) {
+    history.replaceState(null, "", `${location.pathname}${location.search}#overview`);
+    return "overview";
+  }
+  return page;
+}
+
+document.querySelectorAll(".nav-link[data-page], .text-action[data-page]").forEach((link) => {
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    const page = link.dataset.page;
+    if (page !== activePage) location.hash = page;
+    else setActivePage(page);
+  });
 });
+
+window.addEventListener("hashchange", () => {
+  if (document.body.classList.contains("signed-in")) setActivePage(readPageFromHash());
+});
+
+$("#history-result-filter").addEventListener("change", renderHistoryMatches);
+$("#history-hero-filter").addEventListener("change", renderHistoryMatches);
 
 function showDashboard() {
   $("#welcome").hidden = true;
   $("#dashboard").hidden = false;
   $("#signout").hidden = false;
   document.body.classList.add("signed-in");
+  setActivePage(readPageFromHash());
 }
 
 function updateDashboardErrors(errors, accountId, loadId) {
@@ -1204,14 +1321,14 @@ function setLoadingPlaceholders(selectors, isLoading) {
 }
 
 function renderMatchesError() {
-  const body = $("#matches-body");
+  const body = $("#recent-matches-body");
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
   cell.colSpan = 6;
   cell.className = "empty-matches";
   cell.textContent = "Recent matches couldn't be loaded yet. Use Retry above to try again.";
-  $("#matches-summary").textContent = "";
+  $("#recent-matches-summary").textContent = "";
 }
 
 async function loadDashboard(accountId) {
@@ -1219,6 +1336,9 @@ async function loadDashboard(accountId) {
   clearTimeout(dashboardLoadingTimer);
   dashboardLoadingTimer = null;
   signedInAccountId = accountId;
+  historyMatches = null;
+  historyLoaded = false;
+  historyRequestId += 1;
   heroById = new Map();
   showDashboard();
   renderFriends();
@@ -1333,7 +1453,8 @@ async function loadDashboard(accountId) {
     (matches) => {
       results.matches = matches;
       renderRecentForm(matches);
-      renderMatches(matches);
+      renderMatches(matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
+      if (historyLoaded) renderHistoryMatches();
       if (results.ranked !== null) renderPredictedRank(matches, results.ranked);
       setLoadingPlaceholders(["#recent-form-summary"], false);
     },
@@ -1350,14 +1471,16 @@ async function loadDashboard(accountId) {
     "https://api.opendota.com/api/heroes",
     (heroes) => {
       heroById = new Map(heroes.map((hero) => [hero.id, hero]));
-      if (results.matches) renderMatches(results.matches);
+      populateHistoryHeroFilter();
+      if (results.matches) renderMatches(results.matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
+      if (historyLoaded) renderHistoryMatches();
       if (results.heroStats) {
         renderHeroPerformance(results.heroStats);
         renderHeroOptions(results.heroStats);
       }
     },
     () => {
-      if (results.matches) renderMatches(results.matches);
+      if (results.matches) renderMatches(results.matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
     }
   );
 
@@ -1405,6 +1528,8 @@ async function syncRecentGames() {
   try {
     await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/refresh`, { method: "POST" });
     status.textContent = "Refresh requested. Checking recent data…";
+    historyMatches = null;
+    historyLoaded = false;
     await loadDashboard(accountId);
     status.textContent = "OpenDota checked again. New games may take a few minutes to appear.";
   } catch (error) {

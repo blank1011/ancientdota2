@@ -859,6 +859,100 @@ function renderRecentForm(matches) {
   }
 }
 
+function renderImprovementFocus(matches) {
+  const container = $("#improvement-focus");
+  container.replaceChildren();
+  const readNumber = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+    ? Number(value)
+    : null;
+  const games = (Array.isArray(matches) ? matches : [])
+    .slice(0, 20)
+    .filter((match) => typeof match.radiant_win === "boolean" && readNumber(match.player_slot) !== null)
+    .map((match) => ({ match, won: match.radiant_win === (Number(match.player_slot) < 128) }));
+  const wins = games.filter((game) => game.won);
+  const losses = games.filter((game) => !game.won);
+  if (wins.length < 2 || losses.length < 2) {
+    const message = document.createElement("p");
+    message.className = "improvement-message";
+    message.textContent = `Need at least 2 wins and 2 losses with available stats to find a useful pattern. Recent sample: ${wins.length}W – ${losses.length}L.`;
+    container.append(message);
+    return;
+  }
+
+  const metrics = [
+    {
+      label: "Last hits per minute",
+      read: (match) => {
+        const lastHits = readNumber(match.last_hits);
+        const duration = readNumber(match.duration);
+        return lastHits !== null && duration > 0 ? lastHits / (duration / 60) : null;
+      },
+      format: (value) => value.toFixed(1),
+      action: "Try to secure more lane creeps, then keep your farm pattern going between fights."
+    },
+    {
+      label: "Gold per minute",
+      read: (match) => readNumber(match.gold_per_min),
+      format: (value) => `${Math.round(value)} GPM`,
+      action: "Look for safe farm between fights and turn won fights into objectives."
+    },
+    {
+      label: "Experience per minute",
+      read: (match) => readNumber(match.xp_per_min),
+      format: (value) => `${Math.round(value)} XPM`,
+      action: "Reduce time spent waiting between plays; keep earning experience from waves and camps."
+    },
+    {
+      label: "Deaths per game",
+      read: (match) => readNumber(match.deaths),
+      format: (value) => value.toFixed(1),
+      lowerIsBetter: true,
+      action: "Before entering fog or rejoining a fight, check enemy positions and whether teammates can follow."
+    }
+  ];
+  let comparableMetricCount = 0;
+  const comparisons = metrics.flatMap((metric) => {
+    const winValues = wins.map(({ match }) => metric.read(match)).filter((value) => value !== null);
+    const lossValues = losses.map(({ match }) => metric.read(match)).filter((value) => value !== null);
+    if (winValues.length < 2 || lossValues.length < 2) return [];
+    comparableMetricCount += 1;
+    const winAverage = winValues.reduce((total, value) => total + value, 0) / winValues.length;
+    const lossAverage = lossValues.reduce((total, value) => total + value, 0) / lossValues.length;
+    const gap = metric.lowerIsBetter ? lossAverage - winAverage : winAverage - lossAverage;
+    return gap > 0 ? [{ metric, winAverage, lossAverage, gap, sampleSize: winValues.length + lossValues.length }] : [];
+  })
+    .filter((comparison) => comparison.gap / Math.max(Math.abs(comparison.winAverage), 1) >= 0.05)
+    .sort((a, b) => b.gap / Math.max(Math.abs(b.winAverage), 1) - a.gap / Math.max(Math.abs(a.winAverage), 1));
+
+  if (!comparisons.length) {
+    const message = document.createElement("p");
+    message.className = "improvement-message";
+    message.textContent = comparableMetricCount
+      ? "No clear stat gap stands out in this sample. Keep reviewing match reports to spot a pattern you can work on."
+      : "Not enough recent match stats are available to compare yet. Check back after OpenDota has more match data.";
+    container.append(message);
+    return;
+  }
+
+  const { metric, winAverage, lossAverage, sampleSize } = comparisons[0];
+  const label = document.createElement("span");
+  label.className = "improvement-pattern-label";
+  label.textContent = "PATTERN TO REVIEW";
+  const title = document.createElement("h3");
+  title.className = "improvement-metric";
+  title.textContent = metric.label;
+  const comparison = document.createElement("p");
+  comparison.className = "improvement-comparison";
+  comparison.textContent = `Recent losses: ${metric.format(lossAverage)} · wins: ${metric.format(winAverage)}`;
+  const action = document.createElement("p");
+  action.className = "improvement-action";
+  action.textContent = metric.action;
+  const sample = document.createElement("span");
+  sample.className = "improvement-sample";
+  sample.textContent = `Based on ${sampleSize} of your last ${games.length} games`;
+  container.append(label, title, comparison, action, sample);
+}
+
 function setScoutMessage(selector, message, isError = false, retry) {
   const container = $(selector);
   container.replaceChildren();
@@ -1453,6 +1547,7 @@ async function loadDashboard(accountId) {
     (matches) => {
       results.matches = matches;
       renderRecentForm(matches);
+      renderImprovementFocus(matches);
       renderMatches(matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
       if (historyLoaded) renderHistoryMatches();
       if (results.ranked !== null) renderPredictedRank(matches, results.ranked);
@@ -1460,6 +1555,7 @@ async function loadDashboard(accountId) {
     },
     () => {
       renderMatchesError();
+      setScoutMessage("#improvement-focus", "Recent match stats are unavailable right now.", true);
       $("#recent-form-summary").textContent = "Unavailable";
       $("#recent-form").replaceChildren();
       setLoadingPlaceholders(["#recent-form-summary"], false);

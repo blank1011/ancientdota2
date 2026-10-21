@@ -112,16 +112,26 @@
                 <div id="predicted-rank-caption" class="stat-caption"></div>
               </article>
             </div>
-            <section id="matches-section" class="matches-section">
-              <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><div class="recent-match-actions"><span id="recent-matches-summary" class="match-count"></span><a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a></div></div>
-              <div class="match-table-wrap">
-                <table class="match-table">
-                  <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
-                  <tbody id="recent-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="6"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
-                </table>
-              </div>
-              <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. “Not provided” means OpenDota has no rank for that match; we don’t guess.</div>
-            </section>
+            <div class="overview-lower">
+              <section id="matches-section" class="matches-section">
+                <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><div class="recent-match-actions"><span id="recent-matches-summary" class="match-count"></span><a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a></div></div>
+                <div class="match-table-wrap">
+                  <table class="match-table">
+                    <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
+                    <tbody id="recent-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="6"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
+                  </table>
+                </div>
+                <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. “Not provided” means OpenDota has no rank for that match; we don’t guess.</div>
+              </section>
+              <aside class="improvement-panel" aria-labelledby="improvement-title">
+                <span class="eyebrow"><span class="eyebrow-line"></span> PLAYER DEVELOPMENT</span>
+                <h2 id="improvement-title">Next match <span>focus.</span></h2>
+                <div id="improvement-focus" aria-live="polite">
+                  <p class="improvement-message">Comparing your recent games…</p>
+                </div>
+                <p class="improvement-disclaimer">A recent pattern to review, not proof of what decides a match.</p>
+              </aside>
+            </div>
           </section>
           <section class="dashboard-page" id="match-history-page" data-page-content="matches" hidden>
             <p class="page-intro">Review your recent games and open any row for the full battle report.</p>

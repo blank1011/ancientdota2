@@ -26,6 +26,7 @@
         <span class="sidebar-section-label">YOUR DOTA</span>
         <a class="nav-link nav-link-active" href="#overview" data-page="overview" title="Overview"><span class="nav-link-icon" aria-hidden="true">⌂</span><span>Overview</span></a>
         <a class="nav-link" href="#matches" data-page="matches" title="Match history"><span class="nav-link-icon" aria-hidden="true">⚔</span><span>Match history</span></a>
+        <a class="nav-link" href="#player-search" data-page="player-search" title="Player search"><span class="nav-link-icon" aria-hidden="true">⌕</span><span>Player search</span></a>
         <a class="nav-link" href="#scout" data-page="scout" title="Scout report"><span class="nav-link-icon" aria-hidden="true">◎</span><span>Scout report</span></a>
         <a class="nav-link" href="#party" data-page="party" title="Party roster"><span class="nav-link-icon" aria-hidden="true">♙</span><span>Party roster</span></a>
         <span class="sidebar-section-label sidebar-section-upcoming">IN THE WORKS</span>
@@ -86,7 +87,7 @@
           <div><span class="eyebrow"><span class="eyebrow-line"></span> <span id="page-eyebrow">PLAYER OVERVIEW</span></span><h1 id="page-title">Your <span>game.</span></h1></div>
           <div class="dashboard-heading-actions">
             <div id="sync-status" class="sync-status" role="status" aria-live="polite"></div>
-            <button id="sync-matches" class="sync-button" type="button"><span aria-hidden="true">↻</span> Sync recent games</button>
+            <button id="sync-matches" class="sync-button" type="button"><span aria-hidden="true">↻</span> Refresh rank &amp; games</button>
             <div class="last-updated"><span class="status-dot"></span> LIVE FROM OPENDOTA <span class="last-updated-divider">·</span> ACT I: THE BATTLEFIELD</div>
           </div>
         </div>
@@ -103,11 +104,11 @@
             <div id="dashboard-error" class="notice" role="status" hidden></div>
             <div class="stats-grid">
               <article class="stat-card winrate-card"><div class="stat-heading"><span>WIN RATE</span><span class="stat-icon">↗</span></div><strong id="winrate">—<small>%</small></strong><div class="winrate-bottom"><span id="win-loss">Loading record…</span><div class="winrate-track"><i id="winrate-bar"></i></div></div></article>
-              <article class="stat-card"><div class="stat-heading"><span>ESTIMATED MMR</span><span class="stat-icon">◎</span></div><strong id="mmr">—</strong><div id="mmr-caption" class="stat-caption">OpenDota estimate</div></article>
+              <article class="stat-card"><div class="stat-heading"><span>CURRENT MMR</span><span class="stat-icon">◎</span></div><strong id="mmr">—</strong><div id="mmr-caption" class="stat-caption">OpenDota estimate when available</div></article>
               <article class="stat-card"><div class="stat-heading"><span>MATCHES PLAYED</span><span class="stat-icon">◷</span></div><strong id="matches-count">—</strong><div class="stat-caption">All-time recorded matches</div></article>
               <article class="stat-card form-card"><div class="stat-heading"><span>RECENT FORM</span><span class="stat-icon">✳</span></div><strong id="recent-form-summary">—</strong><div id="recent-form" class="form-marks" aria-label="Results of your last five matches"></div></article>
               <article id="predicted-rank-card" class="stat-card predicted-rank-card" hidden>
-                <div class="stat-heading"><span>PREDICTED RANK</span><span class="stat-icon" aria-hidden="true">≈</span></div>
+                <div class="stat-heading"><span id="predicted-rank-label">PREDICTED RANK</span><span class="stat-icon" aria-hidden="true">≈</span></div>
                 <div class="predicted-rank-value"><img id="predicted-rank-icon" alt="" hidden><strong id="predicted-rank-name">—</strong></div>
                 <div id="predicted-rank-caption" class="stat-caption"></div>
               </article>
@@ -117,11 +118,11 @@
                 <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><div class="recent-match-actions"><span id="recent-matches-summary" class="match-count"></span><a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a></div></div>
                 <div class="match-table-wrap">
                   <table class="match-table">
-                    <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
-                    <tbody id="recent-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="6"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
+                    <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>MMR ± EST.</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
+                    <tbody id="recent-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="7"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
                   </table>
                 </div>
-                <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. “Not provided” means OpenDota has no rank for that match; we don’t guess.</div>
+                <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. MMR ± is a rough +25/−25 baseline for solo ranked games (party size may be unavailable), not the actual rating change; party and matchmaking results vary.</div>
               </section>
               <aside class="improvement-panel" aria-labelledby="improvement-title">
                 <span class="eyebrow"><span class="eyebrow-line"></span> PLAYER DEVELOPMENT</span>
@@ -142,11 +143,56 @@
             </div>
             <div class="match-table-wrap">
               <table class="match-table">
-                <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
-                <tbody id="matches-body" class="match-table-body"><tr><td class="table-loading" colspan="6"><span class="loading-spinner"></span> Open Match History to load your games…</td></tr></tbody>
+                <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>MMR ± EST.</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
+                <tbody id="matches-body" class="match-table-body"><tr><td class="table-loading" colspan="7"><span class="loading-spinner"></span> Open Match History to load your games…</td></tr></tbody>
               </table>
             </div>
-            <div id="history-note" class="matches-note">Showing up to the latest 100 games available from OpenDota.</div>
+            <div id="history-note" class="matches-note">Showing up to 100 games available from OpenDota. MMR ± is a rough +25/−25 baseline for solo ranked games (party size may be unavailable), not the actual rating change; party and matchmaking results vary.</div>
+          </section>
+          <section class="dashboard-page" id="player-search-page" data-page-content="player-search" hidden>
+            <div class="page-section-heading">
+              <span class="eyebrow"><span class="eyebrow-line"></span> PUBLIC PLAYER LOOKUP</span>
+              <h2>Find a player</h2>
+              <p>Search by Steam ID to view a player’s public profile and recent Dota matches.</p>
+            </div>
+            <form id="player-search-form" class="player-search-form">
+              <label for="player-search-id">STEAM ID</label>
+              <div class="player-search-input-row">
+                <input id="player-search-id" name="steamId" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter Steam32 or Steam64 ID" aria-describedby="player-search-help player-search-status" required>
+                <button id="player-search-submit" type="submit">Search player</button>
+              </div>
+              <span id="player-search-help" class="player-search-help">The player’s profile and match data must be available on OpenDota. Steam passwords are never requested.</span>
+            </form>
+            <div id="player-search-status" class="player-search-status" role="status" aria-live="polite"></div>
+            <section id="player-search-results" class="player-search-results" aria-label="Player profile and recent matches" hidden>
+              <article class="searched-player-card">
+                <div class="searched-player-main">
+                  <img id="searched-player-avatar" class="searched-player-avatar" alt="">
+                  <div class="searched-player-identity">
+                    <span class="profile-kicker">PLAYER PROFILE</span>
+                    <h3 id="searched-player-name"></h3>
+                    <a id="searched-player-link" href="#" target="_blank" rel="noopener noreferrer">View OpenDota profile <span>↗</span></a>
+                  </div>
+                </div>
+                <div class="searched-player-rank">
+                  <img id="searched-player-rank-icon" alt="">
+                  <div><span>COMPETITIVE RANK</span><strong id="searched-player-rank"></strong></div>
+                </div>
+              </article>
+              <section class="matches-section player-search-matches">
+                <div class="section-heading">
+                  <div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div>
+                  <span id="player-search-match-count" class="match-count"></span>
+                </div>
+                <div class="match-table-wrap">
+                  <table class="match-table">
+                    <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>MMR ± EST.</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
+                    <tbody id="player-search-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="7">Search for a player to load recent matches.</td></tr></tbody>
+                  </table>
+                </div>
+                <div class="matches-note">Showing up to 20 recent games. MMR ± is a rough +25/−25 baseline for solo ranked games (party size may be unavailable), not the actual rating change; party and matchmaking results vary.</div>
+              </section>
+            </section>
           </section>
           <section class="dashboard-page" id="scout-page" data-page-content="scout" hidden>
             <section id="scout-report" class="scout-report" aria-labelledby="scout-report-title">

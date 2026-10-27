@@ -320,6 +320,31 @@ main { min-height: 100vh; margin-left: 252px; }
 .page-section-heading h2 { margin-top: 9px; color: #f0e9dd; font: 600 28px "Space Grotesk", sans-serif; letter-spacing: -.7px; }
 .page-section-heading p { margin-top: 8px; color: #aaa08e; font-size: 13px; line-height: 1.6; }
 .page-intro { margin: -14px 0 18px; color: #aaa08e; font-size: 13px; line-height: 1.6; }
+.player-search-form { max-width: 780px; margin: 24px 0 0; padding: 20px; border: 1px solid rgba(210,180,128,.18); border-radius: 3px; background: linear-gradient(145deg, rgba(25,26,24,.97), rgba(16,18,18,.96)); }
+.player-search-form > label { display: block; margin-bottom: 8px; color: #aa9d85; font: 600 9px "Space Grotesk", sans-serif; letter-spacing: 1px; }
+.player-search-input-row { display: flex; gap: 9px; }
+.player-search-input-row input { min-width: 0; height: 43px; flex: 1; padding: 0 12px; border: 1px solid rgba(210,180,128,.2); border-radius: 2px; outline: none; background: rgba(7,9,9,.68); color: #eee4d5; font: 500 12px "DM Sans", sans-serif; }
+.player-search-input-row input:focus { border-color: rgba(224,93,70,.72); box-shadow: 0 0 0 2px rgba(224,93,70,.1); }
+.player-search-input-row button { min-width: 132px; padding: 0 16px; border: 1px solid rgba(224,93,70,.6); border-radius: 2px; background: linear-gradient(145deg,#a93d31,#7e2924); color: #fff0e1; font: 600 11px "Space Grotesk",sans-serif; cursor: pointer; }
+.player-search-input-row button:hover { background: linear-gradient(145deg,#ca4a39,#983328); }
+.player-search-input-row button:disabled { opacity: .55; cursor: wait; }
+.player-search-help { display: block; margin-top: 9px; color: #81796d; font-size: 10px; line-height: 1.5; }
+.player-search-status { min-height: 20px; margin-top: 13px; color: #b8a98e; font-size: 11px; line-height: 1.5; }
+.player-search-status-error, .player-search-error { color: #e9a18e; }
+.player-search-results { margin-top: 20px; }
+.searched-player-card { min-height: 122px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 21px 24px; border: 1px solid rgba(210,180,128,.19); border-radius: 3px; background: linear-gradient(105deg,rgba(28,28,25,.98),rgba(20,21,20,.96) 70%,rgba(23,20,18,.94)); box-shadow: inset 0 1px rgba(255,255,255,.025),0 15px 45px rgba(0,0,0,.16); }
+.searched-player-main { min-width: 0; display: flex; align-items: center; gap: 16px; }
+.searched-player-avatar { width: 66px; height: 66px; flex: 0 0 66px; border: 1px solid rgba(212,174,112,.63); border-radius: 50%; background: #24211d; object-fit: cover; }
+.searched-player-identity { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.searched-player-identity h3 { overflow: hidden; color: #f1eadf; font: 600 20px "Space Grotesk",sans-serif; text-overflow: ellipsis; }
+.searched-player-identity a { color: #a59a87; font-size: 10px; }
+.searched-player-identity a span { color: var(--gold); }
+.searched-player-rank { min-width: 190px; display: flex; align-items: center; gap: 10px; padding-left: 22px; border-left: 1px solid rgba(212,174,112,.19); }
+.searched-player-rank img { width: 47px; height: 47px; object-fit: contain; }
+.searched-player-rank > div { display: flex; flex-direction: column; gap: 6px; }
+.searched-player-rank > div > span { color: #b2a58e; font: 600 8px "Space Grotesk",sans-serif; letter-spacing: .8px; }
+.searched-player-rank strong { color: #eee2ce; font: 600 13px "Space Grotesk",sans-serif; }
+.player-search-matches { margin-top: 28px; }
 .history-filters { display: flex; align-items: end; gap: 12px; margin: 0 0 15px; }
 .history-filters label { min-width: 145px; display: flex; flex-direction: column; gap: 7px; color: #aa9d85; font: 600 8px "Space Grotesk", sans-serif; letter-spacing: .9px; }
 .history-filters select { height: 38px; padding: 0 30px 0 11px; border: 1px solid rgba(210,180,128,.2); border-radius: 2px; outline: none; background: #171715; color: #e4dac9; font: 500 11px "DM Sans", sans-serif; }
@@ -606,6 +631,9 @@ h1 span { color: var(--gold); }
 .rank-cell { color: #c5b99f; }
 .rank-content img { width: 34px; height: 34px; filter: drop-shadow(0 2px 5px rgba(203,157,82,.11)); }
 .rank-unavailable { color: #9a8e7b; font-size: 9px !important; letter-spacing: .15px; }
+.mmr-change-cell { font: 600 10px "Space Grotesk", sans-serif; letter-spacing: .1px; }
+.mmr-change-win { color: #b4d783 !important; }
+.mmr-change-loss { color: #e78d7f !important; }
 .kda-cell { font-size: 11px !important; }
 .kda-cell .deaths { color: #e79788; }
 .matches-note { color: #827b70; }
@@ -876,6 +904,12 @@ h1 span { color: var(--gold); }
   .dashboard-heading-actions .last-updated { max-width: 128px; font-size: 6px; }
   .sync-status { order: 3; }
   .dashboard-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .player-search-form { padding: 15px; }
+  .player-search-input-row { flex-direction: column; }
+  .player-search-input-row button { min-height: 42px; }
+  .searched-player-card { align-items: flex-start; flex-direction: column; padding: 16px; }
+  .searched-player-avatar { width: 52px; height: 52px; flex-basis: 52px; }
+  .searched-player-rank { width: 100%; min-width: 0; padding: 12px 0 0; border-top: 1px solid rgba(212,174,112,.14); border-left: 0; }
 }
 
 .match-row-clickable { cursor: pointer; }

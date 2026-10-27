@@ -11,15 +11,18 @@ let dashboardLoadingTimer;
 let itemNamesPromise;
 let itemNames = new Map();
 let activeMatchRequest = 0;
+let activeMatchAccountId = null;
 let activeHeroGuideRequest = 0;
 let selectedInsightHeroId = null;
 let historyMatches = null;
 let historyLoaded = false;
 let historyRequestId = 0;
+let playerSearchRequestId = 0;
 let activePage = "overview";
 const pageDetails = {
   overview: { eyebrow: "PLAYER OVERVIEW", title: "Your game." },
   matches: { eyebrow: "THE BATTLEFIELD", title: "Match history" },
+  "player-search": { eyebrow: "PUBLIC PLAYER LOOKUP", title: "Player search" },
   scout: { eyebrow: "INTELLIGENCE BRIEFING", title: "Scout report" },
   party: { eyebrow: "YOUR FIRETEAM", title: "Party roster" }
 };
@@ -51,7 +54,7 @@ async function apiJson(url, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { ...options, cache: "no-store", signal: controller.signal });
     if (!response.ok) throw new Error(`OpenDota returned ${response.status}`);
     const body = await response.text();
     return body ? JSON.parse(body) : null;
@@ -149,16 +152,13 @@ function estimateCompetitiveRank(matches) {
 function renderPredictedRank(matches, isRanked) {
   const card = $("#predicted-rank-card");
   const grid = $(".stats-grid");
-  card.hidden = true;
-  grid.classList.remove("has-prediction");
-  if (isRanked) return;
-
   card.hidden = false;
   grid.classList.add("has-prediction");
   const estimate = estimateCompetitiveRank(matches);
   const icon = $("#predicted-rank-icon");
   const name = $("#predicted-rank-name");
   const caption = $("#predicted-rank-caption");
+  $("#predicted-rank-label").textContent = isRanked ? "RECENT MATCH RANK" : "PREDICTED RANK";
   if (!estimate) {
     icon.hidden = true;
     name.textContent = "Not enough data";
@@ -172,8 +172,40 @@ function renderPredictedRank(matches, isRanked) {
   icon.alt = "";
   icon.hidden = false;
   name.textContent = `${rank.name}${rank.stars ? ` · ${rank.stars}` : ""}`;
-  caption.textContent = `Weighted from ${estimate.sampleSize} OpenDota match ranks · estimate only`;
-  card.title = "Weighted average of the recorded average ranks in your latest 20 matches; newer matches count more. This is an estimate, not a verified personal rank.";
+  caption.textContent = isRanked
+    ? `Weighted from ${estimate.sampleSize} recent match ranks · not your medal`
+    : `Weighted from ${estimate.sampleSize} OpenDota match ranks · estimate only`;
+  card.title = "Weighted average of recorded match-average ranks in the latest 20 games. It is not your personal medal or a verified MMR.";
+}
+
+function latestRecordedRank(ratings) {
+  if (!Array.isArray(ratings)) return undefined;
+  const recent = [...ratings]
+    .filter((entry) => validRankTier(entry.rank_tier) && Number.isFinite(Number(entry.time)) && Number(entry.time) > 0)
+    .sort((a, b) => Number(b.time) - Number(a.time))[0];
+  if (!recent) return undefined;
+  const ageInDays = (Date.now() / 1000 - Number(recent.time)) / 86400;
+  return ageInDays >= 0 && ageInDays <= 30 ? validRankTier(recent.rank_tier) : undefined;
+}
+
+function estimatedMmrChange(match) {
+  if (Number(match.lobby_type) !== 7
+    || typeof match.radiant_win !== "boolean"
+    || match.player_slot === null
+    || match.player_slot === undefined
+    || !Number.isFinite(Number(match.player_slot))) {
+    return { text: "—", title: "No ranked MMR estimate is available for this match." };
+  }
+  if (Number(match.party_size) > 1) {
+    return { text: "Varies", title: "Party-game rating changes vary; OpenDota does not provide the actual per-match MMR change." };
+  }
+  const won = match.radiant_win === (Number(match.player_slot) < 128);
+  const delta = won ? 25 : -25;
+  return {
+    text: `${delta > 0 ? "+" : "−"}25 est.`,
+    won,
+    title: `Rough ${won ? "gain" : "loss"} based on a typical ±25 solo ranked match. OpenDota doesn't provide this match's actual MMR change${match.party_size == null ? " or party size" : ""}; party and matchmaking results vary.`
+  };
 }
 
 function createFriendRow(accountId) {
@@ -321,7 +353,7 @@ function formatDate(unixSeconds) {
 
 function createMatchPlayerCard(player) {
   const card = document.createElement("article");
-  const isCurrentPlayer = signedInAccountId && String(player.account_id) === String(signedInAccountId);
+  const isCurrentPlayer = activeMatchAccountId && String(player.account_id) === String(activeMatchAccountId);
   card.className = `match-player-card${isCurrentPlayer ? " match-player-current" : ""}`;
 
   const hero = heroById.get(player.hero_id);
@@ -701,10 +733,11 @@ function renderMatchDetails(match, itemNamesAvailable) {
   content.append(teams);
 }
 
-async function openMatchDetails(matchId) {
+async function openMatchDetails(matchId, focusAccountId = signedInAccountId) {
   const dialog = $("#match-dialog");
   const content = $("#match-dialog-content");
   const requestId = ++activeMatchRequest;
+  activeMatchAccountId = focusAccountId;
   $("#match-dialog-title").textContent = "Match details";
   content.replaceChildren();
   const loading = document.createElement("p");
@@ -731,7 +764,7 @@ async function openMatchDetails(matchId) {
   }
 }
 
-function renderMatches(matches, bodySelector = "#matches-body", summarySelector = "#history-summary") {
+function renderMatches(matches, bodySelector = "#matches-body", summarySelector = "#history-summary", focusAccountId = signedInAccountId) {
   const body = $(bodySelector);
   body.replaceChildren();
   const summary = $(summarySelector);
@@ -739,7 +772,7 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
   if (!matches.length) {
     const row = body.insertRow();
     const cell = row.insertCell();
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.className = "empty-matches";
     cell.textContent = "No matches found for these filters.";
     return;
@@ -752,6 +785,7 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
     row.setAttribute("role", "button");
     row.setAttribute("aria-label", `View details for match ${match.match_id}`);
     row.dataset.matchId = match.match_id;
+    if (focusAccountId) row.dataset.focusAccountId = focusAccountId;
     const isRadiant = match.player_slot < 128;
     const won = match.radiant_win === isRadiant;
     const outcome = row.insertCell();
@@ -794,6 +828,13 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
       rankCell.setAttribute("aria-label", "Game rank not provided by OpenDota");
     }
 
+    const mmrCell = row.insertCell();
+    mmrCell.className = "mmr-change-cell";
+    const mmrChange = estimatedMmrChange(match);
+    mmrCell.textContent = mmrChange.text;
+    mmrCell.title = mmrChange.title;
+    if (mmrChange.won !== undefined) mmrCell.classList.add(mmrChange.won ? "mmr-change-win" : "mmr-change-loss");
+
     const kda = row.insertCell();
     kda.className = "kda-cell";
     kda.append(
@@ -812,7 +853,7 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
 for (const body of document.querySelectorAll(".match-table-body")) {
   body.addEventListener("click", (event) => {
     const row = event.target.closest("tr[data-match-id]");
-    if (row) openMatchDetails(row.dataset.matchId);
+    if (row) openMatchDetails(row.dataset.matchId, row.dataset.focusAccountId || signedInAccountId);
   });
 
   body.addEventListener("keydown", (event) => {
@@ -820,7 +861,7 @@ for (const body of document.querySelectorAll(".match-table-body")) {
     const row = event.target.closest("tr[data-match-id]");
     if (!row) return;
     event.preventDefault();
-    openMatchDetails(row.dataset.matchId);
+    openMatchDetails(row.dataset.matchId, row.dataset.focusAccountId || signedInAccountId);
   });
 }
 
@@ -1306,7 +1347,7 @@ async function loadMatchHistory() {
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
-  cell.colSpan = 6;
+  cell.colSpan = 7;
   cell.className = "table-loading";
   cell.innerHTML = '<span class="loading-spinner"></span> Calling your latest battles…';
   $("#history-summary").textContent = "LOADING";
@@ -1321,7 +1362,7 @@ async function loadMatchHistory() {
     body.replaceChildren();
     const errorRow = body.insertRow();
     const errorCell = errorRow.insertCell();
-    errorCell.colSpan = 6;
+    errorCell.colSpan = 7;
     errorCell.className = "empty-matches";
     errorCell.textContent = `Match history couldn't be loaded: ${error.message}.`;
     $("#history-summary").textContent = "";
@@ -1376,6 +1417,117 @@ window.addEventListener("hashchange", () => {
   if (document.body.classList.contains("signed-in")) setActivePage(readPageFromHash());
 });
 
+function setPlayerSearchStatus(message, isError = false) {
+  const status = $("#player-search-status");
+  status.textContent = message;
+  status.classList.toggle("player-search-status-error", isError);
+}
+
+function renderSearchedPlayer(accountId, profile) {
+  const displayName = profile.profile?.personaname || `Dota player · ${accountId}`;
+  const avatar = $("#searched-player-avatar");
+  avatar.hidden = false;
+  avatar.src = profile.profile?.avatarfull || profile.profile?.avatar || invokerPortrait;
+  avatar.alt = profile.profile?.avatarfull || profile.profile?.avatar ? `${displayName}'s Steam avatar` : "Invoker portrait placeholder";
+  avatar.dataset.fallback = profile.profile?.avatarfull || profile.profile?.avatar ? "false" : "true";
+  const rankTier = validRankTier(profile.rank_tier);
+  const rank = rankDetails(rankTier);
+  $("#searched-player-name").textContent = displayName;
+  $("#searched-player-link").href = `https://www.opendota.com/players/${encodeURIComponent(accountId)}`;
+  $("#searched-player-rank-icon").src = rank.image;
+  $("#searched-player-rank-icon").alt = rank.name;
+  $("#searched-player-rank").textContent = `${rank.name}${rank.stars ? ` · ${rank.stars}` : ""}`;
+}
+
+$("#searched-player-avatar").addEventListener("error", (event) => {
+  const avatar = event.currentTarget;
+  if (avatar.dataset.fallback === "true") {
+    avatar.hidden = true;
+    return;
+  }
+  avatar.dataset.fallback = "true";
+  avatar.src = invokerPortrait;
+  avatar.alt = "Invoker portrait placeholder";
+});
+
+function setPlayerSearchMatchesMessage(message, isError = false) {
+  const body = $("#player-search-matches-body");
+  body.replaceChildren();
+  const row = body.insertRow();
+  const cell = row.insertCell();
+  cell.colSpan = 7;
+  cell.className = isError ? "empty-matches player-search-error" : "empty-matches";
+  cell.textContent = message;
+  $("#player-search-match-count").textContent = "";
+}
+
+async function searchPlayer(input) {
+  const requestId = ++playerSearchRequestId;
+  let accountId;
+  try {
+    accountId = normalizeSteamId(input.trim());
+  } catch (error) {
+    $("#player-search-submit").disabled = false;
+    $("#player-search-submit").textContent = "Search player";
+    setPlayerSearchStatus(error.message, true);
+    $("#player-search-id").focus();
+    return;
+  }
+
+  const button = $("#player-search-submit");
+  const results = $("#player-search-results");
+  button.disabled = true;
+  button.textContent = "Searching…";
+  results.hidden = true;
+  setPlayerSearchStatus("Looking up the public profile and recent matches…");
+  setPlayerSearchMatchesMessage("Loading recent matches…");
+
+  const base = "https://api.opendota.com/api/players";
+  const profileRequest = apiJson(`${base}/${encodeURIComponent(accountId)}`);
+  const matchesRequest = apiJson(`${base}/${encodeURIComponent(accountId)}/recentMatches`);
+  const heroesRequest = heroById.size
+    ? Promise.resolve([...heroById.values()])
+    : apiJson("https://api.opendota.com/api/heroes");
+  const [profileResult, matchesResult, heroesResult] = await Promise.allSettled([profileRequest, matchesRequest, heroesRequest]);
+  if (requestId !== playerSearchRequestId) return;
+  button.disabled = false;
+  button.textContent = "Search player";
+
+  const notices = [];
+  if (profileResult.status === "fulfilled") {
+    renderSearchedPlayer(accountId, profileResult.value || {});
+  } else {
+    renderSearchedPlayer(accountId, {});
+    notices.push(`Profile details unavailable: ${profileResult.reason.message}`);
+  }
+  if (heroesResult.status === "fulfilled" && Array.isArray(heroesResult.value)) {
+    heroById = new Map(heroesResult.value.map((hero) => [hero.id, hero]));
+  } else if (heroesResult.status === "rejected") {
+    notices.push("Hero names couldn’t be loaded; match rows may show unknown heroes.");
+  }
+
+  results.hidden = false;
+  if (matchesResult.status === "fulfilled" && Array.isArray(matchesResult.value)) {
+    const matches = matchesResult.value;
+    renderMatches(matches, "#player-search-matches-body", "#player-search-match-count", accountId);
+    if (!matches.length) {
+      setPlayerSearchMatchesMessage("No recent matches are available for this player. Their match data may be private or not yet parsed by OpenDota.");
+    }
+  } else {
+    const message = matchesResult.status === "rejected"
+      ? `Recent matches unavailable: ${matchesResult.reason.message}`
+      : "OpenDota returned an unexpected response for recent matches.";
+    setPlayerSearchMatchesMessage(message, true);
+    notices.push(message);
+  }
+  setPlayerSearchStatus(notices.length ? notices.join(" ") : "Player found. Recent public match data is shown below.", notices.length > 0 && matchesResult.status === "rejected");
+}
+
+$("#player-search-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchPlayer($("#player-search-id").value);
+});
+
 $("#history-result-filter").addEventListener("change", renderHistoryMatches);
 $("#history-hero-filter").addEventListener("change", renderHistoryMatches);
 
@@ -1419,7 +1571,7 @@ function renderMatchesError() {
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
-  cell.colSpan = 6;
+  cell.colSpan = 7;
   cell.className = "empty-matches";
   cell.textContent = "Recent matches couldn't be loaded yet. Use Retry above to try again.";
   $("#recent-matches-summary").textContent = "";
@@ -1444,7 +1596,23 @@ async function loadDashboard(accountId) {
   setScoutMessage("#party-chemistry", "Loading party stats…");
   const errors = new Map();
   const pending = new Set(["profile", "win/loss record", "recent matches", "hero names", "hero performance", "rank history", "party chemistry"]);
-  const results = { matches: null, ranked: null, heroStats: null };
+  const results = {
+    matches: null,
+    ranked: null,
+    profileRankTier: undefined,
+    ratings: null,
+    heroStats: null
+  };
+  const updateDisplayedRank = () => {
+    const rankTier = latestRecordedRank(results.ratings) ?? results.profileRankTier;
+    const rank = rankDetails(rankTier);
+    $("#rank-icon").src = rank.image;
+    $("#rank-icon").alt = rank.name;
+    $("#rank-name").textContent = rank.name;
+    $("#rank-stars").textContent = rank.stars;
+    results.ranked = rankTier !== undefined;
+    if (Array.isArray(results.matches)) renderPredictedRank(results.matches, results.ranked);
+  };
   const loadingNotice = $("#dashboard-loading");
   loadingNotice.textContent = "Connecting to OpenDota. Profile and match data will appear as each section finishes loading.";
   loadingNotice.hidden = false;
@@ -1496,18 +1664,15 @@ async function loadDashboard(accountId) {
       setProfileAvatar(profile.profile?.avatarfull || profile.profile?.avatar);
       $("#steam-profile").href = profile.profile?.profileurl || `https://steamcommunity.com/profiles/${accountId}`;
 
-      const profileRankTier = validRankTier(profile.rank_tier);
-      const rank = rankDetails(profileRankTier);
-      $("#rank-icon").src = rank.image;
-      $("#rank-icon").alt = rank.name;
-      $("#rank-name").textContent = rank.name;
-      $("#rank-stars").textContent = rank.stars;
-      results.ranked = profileRankTier !== undefined;
-      if (results.matches) renderPredictedRank(results.matches, results.ranked);
+      results.profileRankTier = validRankTier(profile.rank_tier);
+      updateDisplayedRank();
 
-      const mmr = profile.mmr_estimate?.estimate;
-      $("#mmr").textContent = Number.isFinite(mmr) ? formatNumber(mmr) : "Unranked";
-      $("#mmr-caption").textContent = Number.isFinite(mmr) ? "OpenDota estimate · not official" : "No MMR estimate available";
+      const mmr = Number(profile.mmr_estimate?.estimate);
+      const hasMmr = Number.isFinite(mmr) && mmr > 0;
+      $("#mmr").textContent = hasMmr ? formatNumber(mmr) : "Unavailable";
+      $("#mmr-caption").textContent = hasMmr
+        ? "OpenDota estimate · exact MMR may differ"
+        : "OpenDota does not expose an MMR estimate for this profile";
       setLoadingPlaceholders(["#player-name", "#rank-name", "#mmr", "#mmr-caption"], false);
     },
     () => {
@@ -1599,7 +1764,11 @@ async function loadDashboard(accountId) {
   const ratingsRequest = request(
     "rank history",
     `https://api.opendota.com/api/players/${accountId}/ratings`,
-    renderRankHistory,
+    (ratings) => {
+      results.ratings = ratings;
+      renderRankHistory(ratings);
+      updateDisplayedRank();
+    },
     (error) => setScoutMessage("#rank-history", `Rank history unavailable: ${error.message}`)
   );
 
@@ -1618,21 +1787,28 @@ async function syncRecentGames() {
   const status = $("#sync-status");
   const accountId = signedInAccountId;
   if (!accountId || button.disabled) return;
+  const previousRank = $("#rank-name").textContent;
+  const previousMmr = $("#mmr").textContent;
   button.disabled = true;
-  button.textContent = "Requesting sync…";
+  button.textContent = "Refreshing profile…";
   status.textContent = "";
   try {
     await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/refresh`, { method: "POST" });
-    status.textContent = "Refresh requested. Checking recent data…";
+    status.textContent = "Refresh requested. Updating rank, MMR, and recent matches…";
     historyMatches = null;
     historyLoaded = false;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     await loadDashboard(accountId);
-    status.textContent = "OpenDota checked again. New games may take a few minutes to appear.";
+    const rankChanged = $("#rank-name").textContent !== previousRank;
+    const mmrChanged = $("#mmr").textContent !== previousMmr;
+    status.textContent = rankChanged || mmrChanged
+      ? "OpenDota profile refreshed. New rank or MMR data is now shown."
+      : "OpenDota refresh requested. Recalibration data may take a few minutes to appear; try refreshing again shortly.";
   } catch (error) {
-    status.textContent = `Could not sync recent games: ${error.message}`;
+    status.textContent = `Could not refresh OpenDota profile: ${error.message}`;
   } finally {
     button.disabled = false;
-    button.innerHTML = '<span aria-hidden="true">↻</span> Sync recent games';
+    button.innerHTML = '<span aria-hidden="true">↻</span> Refresh rank &amp; games';
   }
 }
 

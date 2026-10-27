@@ -631,6 +631,7 @@ h1 span { color: var(--gold); }
 .rank-cell { color: #c5b99f; }
 .rank-content img { width: 34px; height: 34px; filter: drop-shadow(0 2px 5px rgba(203,157,82,.11)); }
 .rank-unavailable { color: #9a8e7b; font-size: 9px !important; letter-spacing: .15px; }
+.game-mode-cell { color: #d0c3ad !important; font-size: 9px !important; }
 .mmr-change-cell { font: 600 10px "Space Grotesk", sans-serif; letter-spacing: .1px; }
 .mmr-change-win { color: #b4d783 !important; }
 .mmr-change-loss { color: #e78d7f !important; }

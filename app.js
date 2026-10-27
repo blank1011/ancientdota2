@@ -2,6 +2,52 @@ const $ = (selector) => document.querySelector(selector);
 const rankNames = ["Unranked", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
 const rankAssets = "https://www.opendota.com/assets/images/dota2/rank_icons";
 const invokerPortrait = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/invoker.png";
+const gameModeNames = [
+  "Unknown",
+  "All Pick",
+  "Captains Mode",
+  "Random Draft",
+  "Single Draft",
+  "All Random",
+  "Intro",
+  "Diretide",
+  "Reverse Captains Mode",
+  "Greeviling",
+  "Tutorial",
+  "Mid Only",
+  "Least Played",
+  "Limited Heroes",
+  "Compendium Matchmaking",
+  "Custom",
+  "Captains Draft",
+  "Balanced Draft",
+  "Ability Draft",
+  "Event",
+  "All Random Death Match",
+  "1v1 Mid",
+  "All Draft",
+  "Turbo",
+  "Mutation",
+  "Coaches Challenge"
+];
+const lobbyTypeNames = new Map([
+  [0, "Unranked"],
+  [1, "Practice"],
+  [2, "Tournament"],
+  [3, "Tutorial"],
+  [4, "Co-op Bots"],
+  [5, "Ranked Team"],
+  [6, "Ranked Solo"],
+  [7, "Ranked"],
+  [8, "1v1 Mid"],
+  [9, "Battle Cup"],
+  [10, "Local Bots"],
+  [11, "Spectator"],
+  [12, "Event"],
+  [13, "Gauntlet"],
+  [14, "New Player"],
+  [15, "Featured"]
+]);
 const friendsStorageKey = "ancient-friends";
 const maxFriends = 12;
 let heroById = new Map();
@@ -121,6 +167,22 @@ function matchRankTier(match) {
     .find((tier) => tier !== undefined);
 }
 
+function matchModeLabel(match) {
+  const gameMode = match.game_mode === null || match.game_mode === undefined || match.game_mode === ""
+    ? undefined
+    : Number(match.game_mode);
+  const lobbyType = match.lobby_type === null || match.lobby_type === undefined || match.lobby_type === ""
+    ? undefined
+    : Number(match.lobby_type);
+  const modeName = Number.isInteger(gameMode)
+    ? gameModeNames[gameMode] || `Mode ${gameMode}`
+    : "Mode unavailable";
+  const lobbyName = Number.isInteger(lobbyType)
+    ? lobbyTypeNames.get(lobbyType) || `Lobby ${lobbyType}`
+    : "Lobby unavailable";
+  return `${lobbyName} · ${modeName}`;
+}
+
 function rankTierToStep(tier) {
   const medal = Math.floor(tier / 10);
   const stars = Math.min(5, Math.max(1, tier % 10));
@@ -189,12 +251,16 @@ function latestRecordedRank(ratings) {
 }
 
 function estimatedMmrChange(match) {
-  if (Number(match.lobby_type) !== 7
+  const lobbyType = Number(match.lobby_type);
+  if (![5, 6, 7].includes(lobbyType)
     || typeof match.radiant_win !== "boolean"
     || match.player_slot === null
     || match.player_slot === undefined
     || !Number.isFinite(Number(match.player_slot))) {
     return { text: "—", title: "No ranked MMR estimate is available for this match." };
+  }
+  if (lobbyType === 5) {
+    return { text: "Varies", title: "Ranked team rating changes vary; OpenDota does not provide the actual per-match MMR change." };
   }
   if (Number(match.party_size) > 1) {
     return { text: "Varies", title: "Party-game rating changes vary; OpenDota does not provide the actual per-match MMR change." };
@@ -772,7 +838,7 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
   if (!matches.length) {
     const row = body.insertRow();
     const cell = row.insertCell();
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.className = "empty-matches";
     cell.textContent = "No matches found for these filters.";
     return;
@@ -827,6 +893,10 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
       rankCell.title = "OpenDota has no average rank data for this match. Ancient does not guess a game rank.";
       rankCell.setAttribute("aria-label", "Game rank not provided by OpenDota");
     }
+
+    const modeCell = row.insertCell();
+    modeCell.className = "game-mode-cell";
+    modeCell.textContent = matchModeLabel(match);
 
     const mmrCell = row.insertCell();
     mmrCell.className = "mmr-change-cell";
@@ -1347,7 +1417,7 @@ async function loadMatchHistory() {
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
-  cell.colSpan = 7;
+  cell.colSpan = 8;
   cell.className = "table-loading";
   cell.innerHTML = '<span class="loading-spinner"></span> Calling your latest battles…';
   $("#history-summary").textContent = "LOADING";
@@ -1362,7 +1432,7 @@ async function loadMatchHistory() {
     body.replaceChildren();
     const errorRow = body.insertRow();
     const errorCell = errorRow.insertCell();
-    errorCell.colSpan = 7;
+    errorCell.colSpan = 8;
     errorCell.className = "empty-matches";
     errorCell.textContent = `Match history couldn't be loaded: ${error.message}.`;
     $("#history-summary").textContent = "";
@@ -1455,7 +1525,7 @@ function setPlayerSearchMatchesMessage(message, isError = false) {
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
-  cell.colSpan = 7;
+  cell.colSpan = 8;
   cell.className = isError ? "empty-matches player-search-error" : "empty-matches";
   cell.textContent = message;
   $("#player-search-match-count").textContent = "";
@@ -1571,7 +1641,7 @@ function renderMatchesError() {
   body.replaceChildren();
   const row = body.insertRow();
   const cell = row.insertCell();
-  cell.colSpan = 7;
+  cell.colSpan = 8;
   cell.className = "empty-matches";
   cell.textContent = "Recent matches couldn't be loaded yet. Use Retry above to try again.";
   $("#recent-matches-summary").textContent = "";

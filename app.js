@@ -250,27 +250,14 @@ function latestRecordedRank(ratings) {
   return ageInDays >= 0 && ageInDays <= 30 ? validRankTier(recent.rank_tier) : undefined;
 }
 
-function estimatedMmrChange(match) {
+function matchMmrChange(match) {
   const lobbyType = Number(match.lobby_type);
-  if (![5, 6, 7].includes(lobbyType)
-    || typeof match.radiant_win !== "boolean"
-    || match.player_slot === null
-    || match.player_slot === undefined
-    || !Number.isFinite(Number(match.player_slot))) {
-    return { text: "—", title: "No ranked MMR estimate is available for this match." };
+  if (![5, 6, 7].includes(lobbyType)) {
+    return { text: "—", title: "MMR changes apply to ranked matches." };
   }
-  if (lobbyType === 5) {
-    return { text: "Varies", title: "Ranked team rating changes vary; OpenDota does not provide the actual per-match MMR change." };
-  }
-  if (Number(match.party_size) > 1) {
-    return { text: "Varies", title: "Party-game rating changes vary; OpenDota does not provide the actual per-match MMR change." };
-  }
-  const won = match.radiant_win === (Number(match.player_slot) < 128);
-  const delta = won ? 25 : -25;
   return {
-    text: `${delta > 0 ? "+" : "−"}25 est.`,
-    won,
-    title: `Rough ${won ? "gain" : "loss"} based on a typical ±25 solo ranked match. OpenDota doesn't provide this match's actual MMR change${match.party_size == null ? " or party size" : ""}; party and matchmaking results vary.`
+    text: "Varies",
+    title: "Dota's MMR change varies by player and match. OpenDota doesn't provide the actual per-match change."
   };
 }
 
@@ -900,10 +887,9 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
 
     const mmrCell = row.insertCell();
     mmrCell.className = "mmr-change-cell";
-    const mmrChange = estimatedMmrChange(match);
+    const mmrChange = matchMmrChange(match);
     mmrCell.textContent = mmrChange.text;
     mmrCell.title = mmrChange.title;
-    if (mmrChange.won !== undefined) mmrCell.classList.add(mmrChange.won ? "mmr-change-win" : "mmr-change-loss");
 
     const kda = row.insertCell();
     kda.className = "kda-cell";

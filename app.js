@@ -56,9 +56,12 @@ let dashboardLoadId = 0;
 let dashboardLoadingTimer;
 let itemNamesPromise;
 let itemNames = new Map();
+const heroItemPopularity = new Map();
 let activeMatchRequest = 0;
 let activeMatchAccountId = null;
 let activeHeroGuideRequest = 0;
+let selectedTrendMatchId = null;
+let activeTrendMatches = null;
 let selectedInsightHeroId = null;
 let historyMatches = null;
 let historyLoaded = false;
@@ -89,6 +92,15 @@ $("#avatar").addEventListener("error", (event) => {
   }
   setProfileAvatar("");
 });
+
+$("#win-loss-tooltip-hero").addEventListener("error", (event) => {
+  event.currentTarget.hidden = true;
+});
+for (const selector of ["#most-played-hero-image", "#highest-winrate-hero-image"]) {
+  $(selector).addEventListener("error", (event) => {
+    event.currentTarget.hidden = true;
+  });
+}
 
 function setLoginError(message) {
   const error = $("#login-error");
@@ -956,8 +968,314 @@ function renderRecentForm(matches) {
   }
 }
 
+function renderWinLossTrend(matches, message = "") {
+  const chart = $("#win-loss-chart");
+  const summary = $("#win-loss-summary");
+  const tooltip = $("#win-loss-tooltip-text");
+  const tooltipHero = $("#win-loss-tooltip-hero");
+  chart.replaceChildren();
+  tooltip.textContent = message || "Hover over or focus a point to inspect that match.";
+  tooltipHero.hidden = true;
+  tooltipHero.removeAttribute("src");
+  if (!Array.isArray(matches)) {
+    summary.textContent = message || "Recent results unavailable.";
+    return;
+  }
+
+  const games = matches
+    .slice(0, 20)
+    .filter((match) => typeof match.radiant_win === "boolean"
+      && match.player_slot !== null
+      && match.player_slot !== undefined
+      && Number.isFinite(Number(match.player_slot)))
+    .reverse()
+    .map((match) => ({
+      match,
+      won: match.radiant_win === (Number(match.player_slot) < 128)
+    }));
+  if (!games.length) {
+    summary.textContent = "No recent match results available.";
+    tooltip.textContent = "Play a match to start tracking your results.";
+    return;
+  }
+
+  const wins = games.filter((game) => game.won).length;
+  const losses = games.length - wins;
+  const winRate = Math.round((wins / games.length) * 100);
+  summary.textContent = `${wins}W – ${losses}L · ${winRate}% in your last ${games.length}`;
+
+  const width = 520;
+  const height = 220;
+  const margin = { top: 20, right: 12, bottom: 31, left: 44 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  let net = 0;
+  const cumulativePoints = games.map((game) => {
+    net += game.won ? 1 : -1;
+    return { ...game, net };
+  });
+  const maxNet = Math.max(1, ...cumulativePoints.map((point) => Math.abs(point.net)));
+  const scaleBound = Math.max(2, Math.ceil(maxNet * 1.15));
+  const points = cumulativePoints.map((point, index) => ({
+    ...point,
+    x: margin.left + ((index + 0.5) / games.length) * plotWidth,
+    y: margin.top + ((scaleBound - point.net) / (scaleBound * 2)) * plotHeight
+  }));
+  const svg = svgElement("svg", {
+    class: "win-loss-svg",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `Cumulative win and loss trend across ${games.length} recent matches, oldest on the left and newest on the right. ${wins} wins and ${losses} losses.`
+  });
+  const topLabel = svgElement("text", {
+    x: margin.left - 9,
+    y: margin.top + 4,
+    "text-anchor": "end",
+    class: "win-loss-axis-label"
+  });
+  topLabel.textContent = `+${scaleBound}`;
+  const zeroY = margin.top + plotHeight / 2;
+  const zeroLabel = svgElement("text", {
+    x: margin.left - 9,
+    y: zeroY + 4,
+    "text-anchor": "end",
+    class: "win-loss-axis-label"
+  });
+  zeroLabel.textContent = "0";
+  const bottomLabel = svgElement("text", {
+    x: margin.left - 9,
+    y: height - margin.bottom + 4,
+    "text-anchor": "end",
+    class: "win-loss-axis-label"
+  });
+  bottomLabel.textContent = `−${scaleBound}`;
+  svg.append(
+    svgElement("line", { x1: margin.left, y1: margin.top, x2: width - margin.right, y2: margin.top, class: "win-loss-grid-line" }),
+    svgElement("line", { x1: margin.left, y1: zeroY, x2: width - margin.right, y2: zeroY, class: "win-loss-zero-line" }),
+    svgElement("line", { x1: margin.left, y1: height - margin.bottom, x2: width - margin.right, y2: height - margin.bottom, class: "win-loss-grid-line" }),
+    topLabel,
+    zeroLabel,
+    bottomLabel
+  );
+  const line = svgElement("polyline", {
+    points: points.map((point) => `${point.x},${point.y}`).join(" "),
+    class: "win-loss-line"
+  });
+  svg.append(line);
+
+  for (const [index, point] of points.entries()) {
+    const hero = heroById.get(point.match.hero_id);
+    const heroName = hero?.localized_name || "Unknown hero";
+    const date = formatDate(point.match.start_time);
+    const label = `Game ${index + 1} of ${games.length}, ${point.won ? "win" : "loss"}, net ${point.net > 0 ? "+" : ""}${point.net}, ${heroName}, ${date}. Select for match analytics.`;
+    const marker = svgElement("g", {
+      class: "win-loss-point-group",
+      tabindex: 0,
+      role: "button",
+      "aria-pressed": String(Number(point.match.match_id) === selectedTrendMatchId),
+      "aria-label": label,
+      "aria-describedby": "win-loss-tooltip"
+    });
+    const title = svgElement("title");
+    title.textContent = label;
+    marker.append(
+      title,
+      svgElement("circle", { cx: point.x, cy: point.y, r: 14, class: "win-loss-point-hit" }),
+      svgElement("circle", {
+        cx: point.x,
+        cy: point.y,
+        r: 6,
+        class: `win-loss-point ${point.won ? "win-loss-point-win" : "win-loss-point-loss"}`
+      })
+    );
+    const showMatch = () => {
+      tooltip.textContent = `Game ${index + 1} · ${point.won ? "WIN" : "LOSS"} · Net ${point.net > 0 ? "+" : ""}${point.net} · ${heroName} · ${date} · Select for analytics`;
+      if (hero) {
+        tooltipHero.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${hero.name.replace("npc_dota_hero_", "")}.png`;
+        tooltipHero.alt = `${heroName} portrait`;
+        tooltipHero.hidden = false;
+      } else {
+        tooltipHero.hidden = true;
+      }
+    };
+    const resetTooltip = () => {
+      if (document.activeElement !== marker) {
+        tooltip.textContent = "Hover or focus to inspect a match; select a point to review stats and items.";
+        tooltipHero.hidden = true;
+      }
+    };
+    const selectMatch = () => {
+      selectedTrendMatchId = Number(point.match.match_id);
+      for (const pointGroup of svg.querySelectorAll(".win-loss-point-group")) {
+        pointGroup.setAttribute("aria-pressed", String(pointGroup === marker));
+      }
+      renderSelectedMatchReview(point.match, index + 1, games.length);
+    };
+    marker.addEventListener("pointerenter", showMatch);
+    marker.addEventListener("pointerleave", resetTooltip);
+    marker.addEventListener("focus", showMatch);
+    marker.addEventListener("blur", resetTooltip);
+    marker.addEventListener("click", selectMatch);
+    marker.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectMatch();
+    });
+    svg.append(marker);
+  }
+
+  const firstLabel = svgElement("text", {
+    x: margin.left,
+    y: height - 8,
+    "text-anchor": "start",
+    class: "win-loss-axis-label"
+  });
+  firstLabel.textContent = "OLDER";
+  const lastLabel = svgElement("text", {
+    x: width - margin.right,
+    y: height - 8,
+    "text-anchor": "end",
+    class: "win-loss-axis-label"
+  });
+  lastLabel.textContent = "NEWER";
+  svg.append(firstLabel, lastLabel);
+  chart.append(svg);
+}
+
+function loadHeroItemPopularity(heroId) {
+  const id = Number(heroId);
+  if (!Number.isInteger(id) || id < 1) return Promise.reject(new Error("This match has no valid hero ID."));
+  if (!heroItemPopularity.has(id)) {
+    const request = apiJson(`https://api.opendota.com/api/heroes/${encodeURIComponent(id)}/itemPopularity`)
+      .catch((error) => {
+        heroItemPopularity.delete(id);
+        throw error;
+      });
+    heroItemPopularity.set(id, request);
+  }
+  return heroItemPopularity.get(id);
+}
+
+function appendMatchItemInventory(container, match) {
+  const heading = document.createElement("h4");
+  heading.className = "selected-items-heading";
+  heading.textContent = "ITEMS IN THIS MATCH";
+  container.append(heading);
+  const items = Array.from({ length: 6 }, (_, slot) => Number(match[`item_${slot}`]) || 0).filter(Boolean);
+  if (!items.length) {
+    const unavailable = document.createElement("p");
+    unavailable.className = "selected-items-note";
+    unavailable.textContent = "OpenDota did not include this match's final inventory.";
+    container.append(unavailable);
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.className = "selected-match-items";
+  for (const itemId of items) {
+    const info = itemNames.get(itemId);
+    const item = document.createElement("span");
+    item.className = "selected-match-item";
+    if (info) {
+      const image = document.createElement("img");
+      image.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/${info.name}.png`;
+      image.alt = info.displayName;
+      image.title = info.displayName;
+      image.loading = "lazy";
+      image.addEventListener("error", () => {
+        image.hidden = true;
+        item.append(Object.assign(document.createElement("span"), { textContent: info.displayName }));
+      }, { once: true });
+      item.append(image);
+    } else {
+      item.textContent = `Item #${itemId}`;
+      item.title = "OpenDota item name unavailable";
+    }
+    list.append(item);
+  }
+  container.append(list);
+}
+
+async function renderSelectedMatchReview(match, gameNumber, sampleSize) {
+  const container = $("#improvement-focus");
+  const requestId = Number(match.match_id);
+  const won = match.radiant_win === (Number(match.player_slot) < 128);
+  const hero = heroById.get(match.hero_id);
+  const heroName = hero?.localized_name || "Unknown hero";
+  const readNumber = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
+    ? Number(value)
+    : null;
+  const kda = [match.kills, match.deaths, match.assists].map(readNumber);
+  const lastHits = readNumber(match.last_hits);
+  const duration = readNumber(match.duration);
+  const stats = [
+    ["K / D / A", kda.every((value) => value !== null) ? kda.join(" / ") : "Unavailable"],
+    ["GOLD / MIN", readNumber(match.gold_per_min) === null ? "Unavailable" : `${Math.round(Number(match.gold_per_min))}`],
+    ["XP / MIN", readNumber(match.xp_per_min) === null ? "Unavailable" : `${Math.round(Number(match.xp_per_min))}`],
+    ["LAST HITS / MIN", lastHits !== null && duration > 0 ? (lastHits / (duration / 60)).toFixed(1) : "Unavailable"],
+    ["DEATHS", readNumber(match.deaths) === null ? "Unavailable" : String(match.deaths)]
+  ];
+  const label = document.createElement("span");
+  label.className = "improvement-pattern-label";
+  label.textContent = `GAME ${gameNumber} OF ${sampleSize} · ${won ? "WIN" : "LOSS"} · ${formatDate(match.start_time)}`;
+  const title = document.createElement("h3");
+  title.className = "improvement-metric";
+  title.textContent = heroName;
+  const statsGrid = document.createElement("div");
+  statsGrid.className = "selected-match-stats";
+  for (const [name, value] of stats) {
+    const stat = document.createElement("div");
+    stat.className = "selected-match-stat";
+    const statName = document.createElement("span");
+    statName.textContent = name;
+    const statValue = document.createElement("strong");
+    statValue.textContent = value;
+    stat.append(statName, statValue);
+    statsGrid.append(stat);
+  }
+  const itemPanel = document.createElement("section");
+  itemPanel.className = "selected-match-build";
+  const inventoryLoading = document.createElement("p");
+  inventoryLoading.className = "selected-items-note";
+  inventoryLoading.textContent = "Loading item names…";
+  itemPanel.append(inventoryLoading);
+  const buildHeading = document.createElement("h4");
+  buildHeading.className = "selected-items-heading";
+  buildHeading.textContent = `POPULAR ${heroName.toUpperCase()} ITEMS`;
+  const buildNote = document.createElement("p");
+  buildNote.className = "selected-items-note";
+  buildNote.textContent = "General OpenDota item trends by game stage, not a personalized build recommendation.";
+  const trends = document.createElement("div");
+  trends.className = "selected-item-trends";
+  const backButton = $("#overall-analysis-button");
+  backButton.hidden = false;
+  container.replaceChildren(label, title, statsGrid, itemPanel, buildHeading, buildNote, trends);
+
+  const buildRequest = loadHeroItemPopularity(match.hero_id);
+  const namesRequest = loadItemNames();
+  const [buildResult, namesResult] = await Promise.allSettled([buildRequest, namesRequest]);
+  if (selectedTrendMatchId !== requestId || container !== $("#improvement-focus")) return;
+  itemPanel.replaceChildren();
+  appendMatchItemInventory(itemPanel, match);
+  if (namesResult.status === "rejected") {
+    const itemNameError = document.createElement("p");
+    itemNameError.className = "selected-items-note selected-items-error";
+    itemNameError.textContent = `Item names unavailable: ${namesResult.reason.message}`;
+    itemPanel.append(itemNameError);
+  }
+  if (buildResult.status === "fulfilled") {
+    renderHeroBuilds(buildResult.value, trends);
+  } else if (buildResult.status === "rejected") {
+    const buildError = document.createElement("p");
+    buildError.className = "selected-items-note selected-items-error";
+    buildError.textContent = `Popular item trends unavailable: ${buildResult.reason.message}`;
+    trends.append(buildError);
+  }
+}
+
 function renderImprovementFocus(matches) {
   const container = $("#improvement-focus");
+  $("#overall-analysis-button").hidden = true;
   container.replaceChildren();
   const readNumber = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value))
     ? Number(value)
@@ -1081,9 +1399,17 @@ function makeHeroImage(heroId, className = "scout-hero-image") {
 function renderHeroPerformance(heroStats) {
   const container = $("#hero-performance");
   container.replaceChildren();
-  const topHeroes = [...heroStats]
-    .filter((entry) => Number(entry.games) > 0)
-    .sort((a, b) => Number(b.games) - Number(a.games))
+  const heroRecords = (Array.isArray(heroStats) ? heroStats : [])
+    .map((entry) => ({
+      ...entry,
+      games: Number(entry.games),
+      wins: Number(entry.win)
+    }))
+    .filter((entry) => Number.isFinite(entry.games) && entry.games > 0
+      && Number.isFinite(entry.wins) && entry.wins >= 0 && entry.wins <= entry.games);
+  renderPersonalHeroHighlights(heroRecords);
+  const topHeroes = [...heroRecords]
+    .sort((a, b) => b.games - a.games)
     .slice(0, 5);
   if (!topHeroes.length) {
     setScoutMessage("#hero-performance", "No recorded hero statistics were returned for this profile.");
@@ -1109,6 +1435,55 @@ function renderHeroPerformance(heroStats) {
     rate.textContent = `${Math.round((wins / games) * 100)}%`;
     row.append(name, count, rate);
     container.append(row);
+  }
+}
+
+function renderPersonalHeroHighlights(heroRecords) {
+  const mostPlayedName = $("#most-played-hero-name");
+  const mostPlayedCaption = $("#most-played-hero-caption");
+  const mostPlayedImage = $("#most-played-hero-image");
+  const highestWinrateName = $("#highest-winrate-hero-name");
+  const highestWinrateCaption = $("#highest-winrate-hero-caption");
+  const highestWinrateImage = $("#highest-winrate-hero-image");
+  const records = [...heroRecords].sort((a, b) => b.games - a.games);
+  const mostPlayed = records[0];
+  if (!mostPlayed) {
+    mostPlayedName.textContent = "Unavailable";
+    mostPlayedCaption.textContent = "No recorded hero matches";
+    mostPlayedImage.hidden = true;
+  } else {
+    const hero = heroById.get(Number(mostPlayed.hero_id));
+    mostPlayedName.textContent = hero?.localized_name || `Hero ${mostPlayed.hero_id}`;
+    mostPlayedCaption.textContent = `${formatNumber(mostPlayed.games)} games · ${Math.round((mostPlayed.wins / mostPlayed.games) * 100)}% win rate`;
+    if (hero) {
+      mostPlayedImage.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${hero.name.replace("npc_dota_hero_", "")}.png`;
+      mostPlayedImage.alt = `${hero.localized_name} portrait`;
+      mostPlayedImage.hidden = false;
+    } else {
+      mostPlayedImage.hidden = true;
+    }
+  }
+
+  const mostSuccessful = records
+    .filter((entry) => entry.games >= 5)
+    .sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || b.games - a.games)[0];
+  if (!mostSuccessful) {
+    highestWinrateName.textContent = "Not enough data";
+    highestWinrateCaption.textContent = "Play at least 5 games on a hero";
+    highestWinrateImage.hidden = true;
+    return;
+  }
+
+  const hero = heroById.get(Number(mostSuccessful.hero_id));
+  const winRate = Math.round((mostSuccessful.wins / mostSuccessful.games) * 100);
+  highestWinrateName.textContent = hero?.localized_name || `Hero ${mostSuccessful.hero_id}`;
+  highestWinrateCaption.textContent = `${winRate}% win rate · ${formatNumber(mostSuccessful.games)} games`;
+  if (hero) {
+    highestWinrateImage.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${hero.name.replace("npc_dota_hero_", "")}.png`;
+    highestWinrateImage.alt = `${hero.localized_name} portrait`;
+    highestWinrateImage.hidden = false;
+  } else {
+    highestWinrateImage.hidden = true;
   }
 }
 
@@ -1247,8 +1622,7 @@ function itemLabel(itemKey) {
   return { name: String(itemKey), displayName: name.replace(/\b\w/g, (letter) => letter.toUpperCase()) };
 }
 
-function renderHeroBuilds(popularity) {
-  const container = $("#hero-builds");
+function renderHeroBuilds(popularity, container = $("#hero-builds")) {
   container.replaceChildren();
   const stages = [
     ["early_game_items", "EARLY"],
@@ -1288,7 +1662,12 @@ function renderHeroBuilds(popularity) {
     stage.append(title, list);
     container.append(stage);
   }
-  if (!hasItems) setScoutMessage("#hero-builds", "Professional item trends aren’t available for this hero yet.");
+  if (!hasItems) {
+    const message = document.createElement("p");
+    message.className = "scout-empty";
+    message.textContent = "Item trends aren’t available for this hero yet.";
+    container.append(message);
+  }
 }
 
 function renderHeroBenchmarks(matches, benchmarks) {
@@ -1346,7 +1725,7 @@ async function loadHeroGuide(accountId, heroId, loadId) {
   const encodedHero = encodeURIComponent(heroId);
   const results = await Promise.allSettled([
     apiJson(`${base}/heroes/${encodedHero}/matchups`),
-    apiJson(`${base}/heroes/${encodedHero}/itemPopularity`),
+    loadHeroItemPopularity(heroId),
     apiJson(`${base}/benchmarks?hero_id=${encodedHero}`),
     apiJson(`${base}/players/${encodedAccount}/matches?hero_id=${encodedHero}&limit=20`),
     loadItemNames()
@@ -1584,6 +1963,15 @@ $("#player-search-form").addEventListener("submit", (event) => {
   searchPlayer($("#player-search-id").value);
 });
 
+$("#overall-analysis-button").addEventListener("click", () => {
+  selectedTrendMatchId = null;
+  for (const point of document.querySelectorAll(".win-loss-point-group")) {
+    point.setAttribute("aria-pressed", "false");
+  }
+  $("#overall-analysis-button").hidden = true;
+  if (Array.isArray(activeTrendMatches)) renderImprovementFocus(activeTrendMatches);
+});
+
 $("#history-result-filter").addEventListener("change", renderHistoryMatches);
 $("#history-hero-filter").addEventListener("change", renderHistoryMatches);
 
@@ -1622,17 +2010,6 @@ function setLoadingPlaceholders(selectors, isLoading) {
   }
 }
 
-function renderMatchesError() {
-  const body = $("#recent-matches-body");
-  body.replaceChildren();
-  const row = body.insertRow();
-  const cell = row.insertCell();
-  cell.colSpan = 8;
-  cell.className = "empty-matches";
-  cell.textContent = "Recent matches couldn't be loaded yet. Use Retry above to try again.";
-  $("#recent-matches-summary").textContent = "";
-}
-
 async function loadDashboard(accountId) {
   const loadId = ++dashboardLoadId;
   clearTimeout(dashboardLoadingTimer);
@@ -1642,6 +2019,15 @@ async function loadDashboard(accountId) {
   historyLoaded = false;
   historyRequestId += 1;
   heroById = new Map();
+  selectedTrendMatchId = null;
+  activeTrendMatches = null;
+  for (const selector of ["#most-played-hero-name", "#highest-winrate-hero-name"]) {
+    $(selector).textContent = "Loading…";
+  }
+  $("#most-played-hero-caption").textContent = "Loading hero history…";
+  $("#most-played-hero-image").hidden = true;
+  $("#highest-winrate-hero-image").hidden = true;
+  $("#highest-winrate-hero-caption").textContent = "Requires at least 5 games";
   showDashboard();
   renderFriends();
   selectedInsightHeroId = null;
@@ -1650,6 +2036,7 @@ async function loadDashboard(accountId) {
   setScoutMessage("#hero-performance", "Loading hero records…");
   setScoutMessage("#rank-history", "Loading rank history…");
   setScoutMessage("#party-chemistry", "Loading party stats…");
+  renderWinLossTrend(null, "Loading recent results…");
   const errors = new Map();
   const pending = new Set(["profile", "win/loss record", "recent matches", "hero names", "hero performance", "rank history", "party chemistry"]);
   const results = {
@@ -1672,7 +2059,7 @@ async function loadDashboard(accountId) {
   const loadingNotice = $("#dashboard-loading");
   loadingNotice.textContent = "Connecting to OpenDota. Profile and match data will appear as each section finishes loading.";
   loadingNotice.hidden = false;
-  setLoadingPlaceholders(["#player-name", "#rank-name", "#mmr", "#mmr-caption", "#winrate", "#win-loss", "#matches-count", "#recent-form-summary"], true);
+  setLoadingPlaceholders(["#player-name", "#rank-name", "#winrate", "#win-loss", "#matches-count", "#recent-form-summary"], true);
   updateDashboardErrors(errors, accountId, loadId);
 
   const updateLoadingNotice = () => {
@@ -1723,20 +2110,12 @@ async function loadDashboard(accountId) {
       results.profileRankTier = validRankTier(profile.rank_tier);
       updateDisplayedRank();
 
-      const mmr = Number(profile.mmr_estimate?.estimate);
-      const hasMmr = Number.isFinite(mmr) && mmr > 0;
-      $("#mmr").textContent = hasMmr ? formatNumber(mmr) : "Unavailable";
-      $("#mmr-caption").textContent = hasMmr
-        ? "OpenDota estimate · exact MMR may differ"
-        : "OpenDota does not expose an MMR estimate for this profile";
-      setLoadingPlaceholders(["#player-name", "#rank-name", "#mmr", "#mmr-caption"], false);
+      setLoadingPlaceholders(["#player-name", "#rank-name"], false);
     },
     () => {
       $("#player-name").textContent = "Profile unavailable";
       $("#rank-name").textContent = "Unavailable";
-      $("#mmr").textContent = "—";
-      $("#mmr-caption").textContent = "OpenDota couldn't load this data";
-      setLoadingPlaceholders(["#player-name", "#rank-name", "#mmr", "#mmr-caption"], false);
+      setLoadingPlaceholders(["#player-name", "#rank-name"], false);
     }
   );
 
@@ -1767,15 +2146,20 @@ async function loadDashboard(accountId) {
     `https://api.opendota.com/api/players/${accountId}/recentMatches`,
     (matches) => {
       results.matches = matches;
+      activeTrendMatches = matches;
+      selectedTrendMatchId = null;
       renderRecentForm(matches);
+      renderWinLossTrend(matches);
       renderImprovementFocus(matches);
-      renderMatches(matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
       if (historyLoaded) renderHistoryMatches();
       if (results.ranked !== null) renderPredictedRank(matches, results.ranked);
       setLoadingPlaceholders(["#recent-form-summary"], false);
     },
     () => {
-      renderMatchesError();
+      activeTrendMatches = null;
+      selectedTrendMatchId = null;
+      $("#overall-analysis-button").hidden = true;
+      renderWinLossTrend(null, "Recent match results couldn't be loaded right now. Use Retry above to try again.");
       setScoutMessage("#improvement-focus", "Recent match stats are unavailable right now.", true);
       $("#recent-form-summary").textContent = "Unavailable";
       $("#recent-form").replaceChildren();
@@ -1789,16 +2173,14 @@ async function loadDashboard(accountId) {
     (heroes) => {
       heroById = new Map(heroes.map((hero) => [hero.id, hero]));
       populateHistoryHeroFilter();
-      if (results.matches) renderMatches(results.matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
+      if (results.matches) renderWinLossTrend(results.matches);
       if (historyLoaded) renderHistoryMatches();
       if (results.heroStats) {
         renderHeroPerformance(results.heroStats);
         renderHeroOptions(results.heroStats);
       }
     },
-    () => {
-      if (results.matches) renderMatches(results.matches.slice(0, 5), "#recent-matches-body", "#recent-matches-summary");
-    }
+    () => {}
   );
 
   const heroStatsRequest = request(
@@ -1811,6 +2193,7 @@ async function loadDashboard(accountId) {
     },
     (error) => {
       setScoutMessage("#hero-performance", `Hero records unavailable: ${error.message}`);
+      renderPersonalHeroHighlights([]);
       setScoutMessage("#hero-matchups", "Hero insights need OpenDota hero history.");
       setScoutMessage("#hero-builds", "Hero insights need OpenDota hero history.");
       setScoutMessage("#hero-benchmarks", "Hero insights need OpenDota hero history.");
@@ -1844,21 +2227,19 @@ async function syncRecentGames() {
   const accountId = signedInAccountId;
   if (!accountId || button.disabled) return;
   const previousRank = $("#rank-name").textContent;
-  const previousMmr = $("#mmr").textContent;
   button.disabled = true;
   button.textContent = "Refreshing profile…";
   status.textContent = "";
   try {
     await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/refresh`, { method: "POST" });
-    status.textContent = "Refresh requested. Updating rank, MMR, and recent matches…";
+    status.textContent = "Refresh requested. Updating rank, hero stats, and recent matches…";
     historyMatches = null;
     historyLoaded = false;
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await loadDashboard(accountId);
     const rankChanged = $("#rank-name").textContent !== previousRank;
-    const mmrChanged = $("#mmr").textContent !== previousMmr;
-    status.textContent = rankChanged || mmrChanged
-      ? "OpenDota profile refreshed. New rank or MMR data is now shown."
+    status.textContent = rankChanged
+      ? "OpenDota profile refreshed. Your rank and match data are updated."
       : "OpenDota refresh requested. Recalibration data may take a few minutes to appear; try refreshing again shortly.";
   } catch (error) {
     status.textContent = `Could not refresh OpenDota profile: ${error.message}`;

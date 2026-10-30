@@ -104,9 +104,10 @@
             <div id="dashboard-error" class="notice" role="status" hidden></div>
             <div class="stats-grid">
               <article class="stat-card winrate-card"><div class="stat-heading"><span>WIN RATE</span><span class="stat-icon">↗</span></div><strong id="winrate">—<small>%</small></strong><div class="winrate-bottom"><span id="win-loss">Loading record…</span><div class="winrate-track"><i id="winrate-bar"></i></div></div></article>
-              <article class="stat-card"><div class="stat-heading"><span>CURRENT MMR</span><span class="stat-icon">◎</span></div><strong id="mmr">—</strong><div id="mmr-caption" class="stat-caption">OpenDota estimate when available</div></article>
               <article class="stat-card"><div class="stat-heading"><span>MATCHES PLAYED</span><span class="stat-icon">◷</span></div><strong id="matches-count">—</strong><div class="stat-caption">All-time recorded matches</div></article>
               <article class="stat-card form-card"><div class="stat-heading"><span>RECENT FORM</span><span class="stat-icon">✳</span></div><strong id="recent-form-summary">—</strong><div id="recent-form" class="form-marks" aria-label="Results of your last five matches"></div></article>
+              <article class="stat-card hero-stat-card"><div class="stat-heading"><span>MOST PLAYED HERO</span><span class="stat-icon">⚔</span></div><div class="hero-stat-content"><img id="most-played-hero-image" class="hero-stat-image" alt="" hidden><div class="hero-stat-details"><strong id="most-played-hero-name">Loading…</strong><span id="most-played-hero-caption" class="stat-caption">Loading hero history…</span></div></div></article>
+              <article class="stat-card hero-stat-card"><div class="stat-heading"><span>HIGHEST WIN RATE</span><span class="stat-icon">✦</span></div><div class="hero-stat-content"><img id="highest-winrate-hero-image" class="hero-stat-image" alt="" hidden><div class="hero-stat-details"><strong id="highest-winrate-hero-name">Loading…</strong><span id="highest-winrate-hero-caption" class="stat-caption">Requires at least 5 games</span></div></div></article>
               <article id="predicted-rank-card" class="stat-card predicted-rank-card" hidden>
                 <div class="stat-heading"><span id="predicted-rank-label">PREDICTED RANK</span><span class="stat-icon" aria-hidden="true">≈</span></div>
                 <div class="predicted-rank-value"><img id="predicted-rank-icon" alt="" hidden><strong id="predicted-rank-name">—</strong></div>
@@ -114,23 +115,24 @@
               </article>
             </div>
             <div class="overview-lower">
-              <section id="matches-section" class="matches-section">
-                <div class="section-heading"><div><span class="eyebrow"><span class="eyebrow-line"></span> ON THE BATTLEFIELD</span><h2>Recent matches</h2></div><div class="recent-match-actions"><span id="recent-matches-summary" class="match-count"></span><a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a></div></div>
-                <div class="match-table-wrap">
-                  <table class="match-table">
-                    <thead><tr><th>RESULT</th><th>HERO</th><th>GAME RANK</th><th>MODE</th><th>MMR CHANGE</th><th>K / D / A</th><th>DURATION</th><th>WHEN</th></tr></thead>
-                    <tbody id="recent-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="8"><span class="loading-spinner"></span> Finding your recent matches…</td></tr></tbody>
-                  </table>
+              <section class="win-loss-card" aria-labelledby="win-loss-title">
+                <div class="win-loss-heading">
+                  <div><span class="eyebrow"><span class="eyebrow-line"></span> RECENT PERFORMANCE</span><h2 id="win-loss-title">Win / loss <span>trend.</span></h2></div>
+                  <a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a>
                 </div>
-                <div id="matches-note" class="matches-note">Game rank uses OpenDota’s recorded match average. Ranked MMR changes vary by player and match; OpenDota does not provide the actual per-match change.</div>
+                <div id="win-loss-summary" class="win-loss-summary">Loading recent results…</div>
+                <div id="win-loss-chart" class="win-loss-chart" aria-label="Recent win and loss trend"></div>
+                <div id="win-loss-tooltip" class="win-loss-tooltip" role="status" aria-live="polite"><img id="win-loss-tooltip-hero" alt="" hidden><span id="win-loss-tooltip-text">Hover over or focus a point to inspect that match.</span></div>
+                <div class="win-loss-legend"><span class="win-loss-legend-win">WIN</span><span class="win-loss-legend-loss">LOSS</span><span>NET W/L · OLDEST TO NEWEST</span></div>
               </section>
               <aside class="improvement-panel" aria-labelledby="improvement-title">
-                <span class="eyebrow"><span class="eyebrow-line"></span> PLAYER DEVELOPMENT</span>
-                <h2 id="improvement-title">Next match <span>focus.</span></h2>
+                <span class="eyebrow"><span class="eyebrow-line"></span> MATCH ANALYTICS</span>
+                <h2 id="improvement-title">Improve your <span>game.</span></h2>
+                <button id="overall-analysis-button" class="overall-analysis-button" type="button" hidden>← Overall trend</button>
                 <div id="improvement-focus" aria-live="polite">
                   <p class="improvement-message">Comparing your recent games…</p>
                 </div>
-                <p class="improvement-disclaimer">A recent pattern to review, not proof of what decides a match.</p>
+                <p class="improvement-disclaimer">Compares available stats across recent wins and losses. A pattern to review, not proof of what decides a match.</p>
               </aside>
             </div>
           </section>

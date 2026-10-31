@@ -117,25 +117,25 @@
             <div class="overview-lower">
               <section class="win-loss-card" aria-labelledby="win-loss-title">
                 <div class="win-loss-heading">
-                  <div><span class="eyebrow"><span class="eyebrow-line"></span> ESTIMATED · UP TO 2,000 MATCHES · 20-GAME MINIMUM WHEN AVAILABLE</span><h2 id="win-loss-title">MMR <span>report.</span></h2></div>
+                  <div><span class="eyebrow"><span class="eyebrow-line"></span> ESTIMATED · SINCE MMR SET · UP TO 2,000 MATCHES</span><h2 id="win-loss-title">MMR <span>report.</span></h2></div>
                   <a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a>
                 </div>
                 <form id="mmr-settings-form" class="mmr-settings-form">
-                  <label for="mmr-current-input">CURRENT MMR<input id="mmr-current-input" name="currentMmr" type="number" min="1" max="20000" step="1" inputmode="numeric" placeholder="e.g. 3500" required></label>
+                  <label for="mmr-current-input">BASELINE MMR<input id="mmr-current-input" name="currentMmr" type="number" min="1" max="20000" step="1" inputmode="numeric" placeholder="e.g. 3500" required></label>
                   <label for="mmr-change-input">EST. CHANGE PER RANKED GAME<input id="mmr-change-input" name="matchChange" type="number" min="1" max="100" step="1" value="25" inputmode="numeric" required></label>
                   <button type="submit">Set MMR</button>
                 </form>
-                <div id="mmr-settings-status" class="mmr-settings-status" role="status" aria-live="polite">Set your current MMR to estimate its history. Saved in this browser.</div>
+                <div id="mmr-settings-status" class="mmr-settings-status" role="status" aria-live="polite">Set your MMR baseline to start tracking gains and losses. Saved in this browser.</div>
                 <div id="mmr-report" class="mmr-report" aria-label="Estimated MMR report">
-                  <article><span>CURRENT MMR</span><strong id="mmr-report-current">—</strong></article>
-                  <article><span>EST. CHANGE</span><strong id="mmr-report-change">—</strong></article>
+                  <article><span>BASE MMR</span><strong id="mmr-report-current">—</strong></article>
+                  <article><span>CHANGE SINCE SET</span><strong id="mmr-report-change">—</strong></article>
                   <article><span>WIN GAINS</span><strong id="mmr-report-wins">—</strong></article>
                   <article><span>LOSS DEDUCTIONS</span><strong id="mmr-report-losses">—</strong></article>
                 </div>
                 <div id="win-loss-summary" class="win-loss-summary">Loading ranked matches…</div>
-                <div id="win-loss-chart" class="win-loss-chart" aria-label="Estimated MMR trend over recent ranked matches"></div>
-                <div id="win-loss-tooltip" class="win-loss-tooltip" role="status" aria-live="polite"><img id="win-loss-tooltip-hero" alt="" hidden><span id="win-loss-tooltip-text">Hover over or focus a bar to inspect that match.</span></div>
-                <div class="win-loss-legend"><span class="mmr-legend-swatch mmr-legend-win"></span><span>WIN / GAIN</span><span class="mmr-legend-swatch mmr-legend-loss"></span><span>LOSS / DEDUCTION</span><span>Each bar is one ranked game</span></div>
+                <div id="win-loss-chart" class="win-loss-chart" aria-label="Estimated MMR arrow trend since the MMR baseline was set"></div>
+                <div id="win-loss-tooltip" class="win-loss-tooltip" role="status" aria-live="polite"><img id="win-loss-tooltip-hero" alt="" hidden><span id="win-loss-tooltip-text">Hover over or focus an arrow to inspect that match.</span></div>
+                <div class="win-loss-legend"><span class="mmr-legend-swatch mmr-legend-win"></span><span>WIN / GAIN</span><span class="mmr-legend-swatch mmr-legend-loss"></span><span>LOSS / DEDUCTION</span><span>Each arrow is one ranked game</span></div>
               </section>
               <aside class="improvement-panel" aria-labelledby="improvement-title">
                 <span class="eyebrow"><span class="eyebrow-line"></span> MATCH ANALYTICS</span>

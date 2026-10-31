@@ -117,13 +117,19 @@
             <div class="overview-lower">
               <section class="win-loss-card" aria-labelledby="win-loss-title">
                 <div class="win-loss-heading">
-                  <div><span class="eyebrow"><span class="eyebrow-line"></span> RECENT PERFORMANCE</span><h2 id="win-loss-title">Win / loss <span>trend.</span></h2></div>
+                  <div><span class="eyebrow"><span class="eyebrow-line"></span> ESTIMATED · LAST 90 DAYS</span><h2 id="win-loss-title">MMR <span>trend.</span></h2></div>
                   <a class="text-action" href="#matches" data-page="matches">All matches <span aria-hidden="true">→</span></a>
                 </div>
-                <div id="win-loss-summary" class="win-loss-summary">Loading recent results…</div>
-                <div id="win-loss-chart" class="win-loss-chart" aria-label="Recent win and loss trend"></div>
-                <div id="win-loss-tooltip" class="win-loss-tooltip" role="status" aria-live="polite"><img id="win-loss-tooltip-hero" alt="" hidden><span id="win-loss-tooltip-text">Hover over or focus a point to inspect that match.</span></div>
-                <div class="win-loss-legend"><span class="win-loss-legend-win">WIN</span><span class="win-loss-legend-loss">LOSS</span><span>NET W/L · OLDEST TO NEWEST</span></div>
+                <form id="mmr-settings-form" class="mmr-settings-form">
+                  <label for="mmr-current-input">CURRENT MMR<input id="mmr-current-input" name="currentMmr" type="number" min="1" max="20000" step="1" inputmode="numeric" placeholder="e.g. 3500" required></label>
+                  <label for="mmr-change-input">EST. CHANGE PER RANKED GAME<input id="mmr-change-input" name="matchChange" type="number" min="1" max="100" step="1" value="25" inputmode="numeric" required></label>
+                  <button type="submit">Set MMR</button>
+                </form>
+                <div id="mmr-settings-status" class="mmr-settings-status" role="status" aria-live="polite">Set your current MMR to estimate its history. Saved in this browser.</div>
+                <div id="win-loss-summary" class="win-loss-summary">Loading ranked matches…</div>
+                <div id="win-loss-chart" class="win-loss-chart" aria-label="Estimated MMR trend over the last 90 days"></div>
+                <div id="win-loss-tooltip" class="win-loss-tooltip" role="status" aria-live="polite"><img id="win-loss-tooltip-hero" alt="" hidden><span id="win-loss-tooltip-text">Hover over or focus a bar to inspect that day.</span></div>
+                <div class="win-loss-legend"><span class="mmr-legend-swatch"></span><span>ESTIMATED MMR AFTER RANKED MATCHES</span><span>Fixed ± change per game</span></div>
               </section>
               <aside class="improvement-panel" aria-labelledby="improvement-title">
                 <span class="eyebrow"><span class="eyebrow-line"></span> MATCH ANALYTICS</span>
@@ -149,7 +155,7 @@
                 <tbody id="matches-body" class="match-table-body"><tr><td class="table-loading" colspan="8"><span class="loading-spinner"></span> Open Match History to load your games…</td></tr></tbody>
               </table>
             </div>
-            <div id="history-note" class="matches-note">Showing up to 100 games available from OpenDota. Ranked MMR changes vary by player and match; OpenDota does not provide the actual per-match change.</div>
+            <div id="history-note" class="matches-note">Showing up to 100 games available from OpenDota. Your ranked MMR column uses the fixed estimate you set above; actual Dota adjustments can vary.</div>
           </section>
           <section class="dashboard-page" id="player-search-page" data-page-content="player-search" hidden>
             <div class="page-section-heading">
@@ -192,7 +198,7 @@
                     <tbody id="player-search-matches-body" class="match-table-body"><tr><td class="table-loading" colspan="8">Search for a player to load recent matches.</td></tr></tbody>
                   </table>
                 </div>
-                <div class="matches-note">Showing up to 20 recent games. Ranked MMR changes vary by player and match; OpenDota does not provide the actual per-match change.</div>
+                <div class="matches-note">Showing up to 20 recent games. MMR estimates are only shown for your own signed-in profile; other players’ actual adjustments vary.</div>
               </section>
             </section>
           </section>

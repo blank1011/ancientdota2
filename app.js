@@ -49,7 +49,9 @@ const lobbyTypeNames = new Map([
   [15, "Featured"]
 ]);
 const friendsStorageKey = "ancient-friends";
+const mmrSettingsStoragePrefix = "ancient-mmr-settings:";
 const maxFriends = 12;
+const defaultMmrMatchChange = 25;
 let heroById = new Map();
 let signedInAccountId = null;
 let dashboardLoadId = 0;
@@ -62,6 +64,8 @@ let activeMatchAccountId = null;
 let activeHeroGuideRequest = 0;
 let selectedTrendMatchId = null;
 let activeTrendMatches = null;
+let mmrMatches = null;
+let mmrSettings = null;
 let selectedInsightHeroId = null;
 let historyMatches = null;
 let historyLoaded = false;
@@ -262,14 +266,28 @@ function latestRecordedRank(ratings) {
   return ageInDays >= 0 && ageInDays <= 30 ? validRankTier(recent.rank_tier) : undefined;
 }
 
-function matchMmrChange(match) {
+function matchMmrChange(match, focusAccountId) {
   const lobbyType = Number(match.lobby_type);
   if (![5, 6, 7].includes(lobbyType)) {
     return { text: "—", title: "MMR changes apply to ranked matches." };
   }
+  if (typeof match.radiant_win !== "boolean" || !Number.isFinite(Number(match.player_slot))) {
+    return { text: "—", title: "OpenDota did not provide enough match data to estimate the MMR change." };
+  }
+  if (!signedInAccountId || String(focusAccountId) !== String(signedInAccountId)) {
+    return {
+      text: "Varies",
+      title: "Dota's actual MMR change varies by player and match; this profile's current MMR baseline isn't available here."
+    };
+  }
+  if (!mmrSettings) {
+    return { text: "—", title: "Enter your current MMR and estimated ranked-game change to show estimated gains and losses." };
+  }
+  const won = match.radiant_win === (Number(match.player_slot) < 128);
+  const change = won ? mmrSettings.matchChange : -mmrSettings.matchChange;
   return {
-    text: "Varies",
-    title: "Dota's MMR change varies by player and match. OpenDota doesn't provide the actual per-match change."
+    text: `≈ ${change > 0 ? "+" : ""}${formatNumber(change)}`,
+    title: "Estimated from your fixed per-ranked-game setting and match result; this is not the actual Dota MMR change."
   };
 }
 
@@ -899,7 +917,7 @@ function renderMatches(matches, bodySelector = "#matches-body", summarySelector 
 
     const mmrCell = row.insertCell();
     mmrCell.className = "mmr-change-cell";
-    const mmrChange = matchMmrChange(match);
+    const mmrChange = matchMmrChange(match, focusAccountId);
     mmrCell.textContent = mmrChange.text;
     mmrCell.title = mmrChange.title;
 
@@ -968,13 +986,24 @@ function renderRecentForm(matches) {
   }
 }
 
-function renderWinLossTrend(matches, message = "") {
+function readMmrSettings(accountId) {
+  const stored = localStorage.getItem(`${mmrSettingsStoragePrefix}${accountId}`);
+  if (!stored) return null;
+  const settings = JSON.parse(stored);
+  if (!settings || !Number.isInteger(settings.currentMmr) || settings.currentMmr < 1 || settings.currentMmr > 20000
+    || !Number.isInteger(settings.matchChange) || settings.matchChange < 1 || settings.matchChange > 100) {
+    throw new Error("Saved MMR settings are invalid. Enter them again to replace the saved values.");
+  }
+  return settings;
+}
+
+function renderMmrTrend(matches, message = "") {
   const chart = $("#win-loss-chart");
   const summary = $("#win-loss-summary");
   const tooltip = $("#win-loss-tooltip-text");
   const tooltipHero = $("#win-loss-tooltip-hero");
   chart.replaceChildren();
-  tooltip.textContent = message || "Hover over or focus a point to inspect that match.";
+  tooltip.textContent = message || "Hover over or focus a bar to inspect that day.";
   tooltipHero.hidden = true;
   tooltipHero.removeAttribute("src");
   if (!Array.isArray(matches)) {
@@ -982,114 +1011,158 @@ function renderWinLossTrend(matches, message = "") {
     return;
   }
 
-  const games = matches
-    .slice(0, 20)
+  if (!mmrSettings) {
+    summary.textContent = "Enter your current MMR to set the chart baseline.";
+    const prompt = document.createElement("p");
+    prompt.className = "mmr-chart-empty";
+    prompt.textContent = "Your ranked match history will be estimated from the MMR and per-game change you enter above.";
+    chart.append(prompt);
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const currentDay = Math.floor(now / 86400);
+  const firstDay = currentDay - 89;
+  const cutoff = firstDay * 86400;
+  const rankedGames = matches
+    .filter((match) => [5, 6, 7].includes(Number(match.lobby_type))
+      && Number.isFinite(Number(match.start_time))
+      && Number(match.start_time) >= cutoff
+      && Number(match.start_time) <= now)
     .filter((match) => typeof match.radiant_win === "boolean"
       && match.player_slot !== null
       && match.player_slot !== undefined
       && Number.isFinite(Number(match.player_slot)))
-    .reverse()
-    .map((match) => ({
-      match,
-      won: match.radiant_win === (Number(match.player_slot) < 128)
-    }));
-  if (!games.length) {
-    summary.textContent = "No recent match results available.";
-    tooltip.textContent = "Play a match to start tracking your results.";
+    .map((match) => {
+      const won = match.radiant_win === (Number(match.player_slot) < 128);
+      return {
+        match,
+        won,
+        change: won ? mmrSettings.matchChange : -mmrSettings.matchChange
+      };
+    })
+    .sort((a, b) => Number(a.match.start_time) - Number(b.match.start_time));
+  if (!rankedGames.length) {
+    summary.textContent = `Current MMR baseline: ${formatNumber(mmrSettings.currentMmr)}.`;
+    const empty = document.createElement("p");
+    empty.className = "mmr-chart-empty";
+    empty.textContent = "No ranked matches with results were found in the last 90 days.";
+    chart.append(empty);
     return;
   }
 
-  const wins = games.filter((game) => game.won).length;
-  const losses = games.length - wins;
-  const winRate = Math.round((wins / games.length) * 100);
-  summary.textContent = `${wins}W – ${losses}L · ${winRate}% in your last ${games.length}`;
+  let estimatedMmr = mmrSettings.currentMmr;
+  for (let index = rankedGames.length - 1; index >= 0; index -= 1) {
+    rankedGames[index].mmr = estimatedMmr;
+    estimatedMmr -= rankedGames[index].change;
+  }
 
-  const width = 520;
+  const dailyResults = new Map();
+  for (const game of rankedGames) {
+    const day = Math.floor(Number(game.match.start_time) / 86400);
+    if (!dailyResults.has(day)) {
+      dailyResults.set(day, {
+        day,
+        mmr: game.mmr,
+        netChange: 0,
+        wins: 0,
+        losses: 0,
+        lastMatch: game.match
+      });
+    }
+    const daily = dailyResults.get(day);
+    daily.mmr = game.mmr;
+    daily.netChange += game.change;
+    daily.wins += Number(game.won);
+    daily.losses += Number(!game.won);
+    daily.lastMatch = game.match;
+  }
+  const days = [...dailyResults.values()].sort((a, b) => a.day - b.day);
+  const wins = rankedGames.filter((game) => game.won).length;
+  const losses = rankedGames.length - wins;
+  const netChange = rankedGames.reduce((total, game) => total + game.change, 0);
+  const netLabel = `${netChange > 0 ? "+" : ""}${formatNumber(netChange)}`;
+  summary.textContent = `Estimated current MMR: ${formatNumber(mmrSettings.currentMmr)} · ${netLabel} over ${rankedGames.length} ranked games (${wins}W – ${losses}L)`;
+
+  const width = 760;
   const height = 220;
-  const margin = { top: 20, right: 12, bottom: 31, left: 44 };
+  const margin = { top: 16, right: 12, bottom: 24, left: 52 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  let net = 0;
-  const cumulativePoints = games.map((game) => {
-    net += game.won ? 1 : -1;
-    return { ...game, net };
-  });
-  const maxNet = Math.max(1, ...cumulativePoints.map((point) => Math.abs(point.net)));
-  const scaleBound = Math.max(2, Math.ceil(maxNet * 1.15));
-  const points = cumulativePoints.map((point, index) => ({
-    ...point,
-    x: margin.left + ((index + 0.5) / games.length) * plotWidth,
-    y: margin.top + ((scaleBound - point.net) / (scaleBound * 2)) * plotHeight
-  }));
+  const values = days.map((day) => day.mmr);
+  const valueSpan = Math.max(300, Math.max(...values) - Math.min(...values));
+  const padding = valueSpan * 0.12;
+  const axisMin = Math.floor((Math.min(...values) - padding) / 500) * 500;
+  const axisMax = Math.max(axisMin + 500, Math.ceil((Math.max(...values) + padding) / 500) * 500);
+  const yForMmr = (value) => margin.top + ((axisMax - value) / (axisMax - axisMin)) * plotHeight;
+  const baselineY = height - margin.bottom;
+  const barWidth = Math.max(3, Math.min(7, (plotWidth / 90) * 0.66));
   const svg = svgElement("svg", {
-    class: "win-loss-svg",
+    class: "win-loss-svg mmr-trend-svg",
     viewBox: `0 0 ${width} ${height}`,
     role: "img",
-    "aria-label": `Cumulative win and loss trend across ${games.length} recent matches, oldest on the left and newest on the right. ${wins} wins and ${losses} losses.`
+    "aria-label": `Estimated MMR trend over 90 days, ending at ${formatNumber(mmrSettings.currentMmr)} MMR. ${rankedGames.length} ranked matches, ${wins} wins and ${losses} losses.`
   });
-  const topLabel = svgElement("text", {
-    x: margin.left - 9,
-    y: margin.top + 4,
-    "text-anchor": "end",
-    class: "win-loss-axis-label"
-  });
-  topLabel.textContent = `+${scaleBound}`;
-  const zeroY = margin.top + plotHeight / 2;
-  const zeroLabel = svgElement("text", {
-    x: margin.left - 9,
-    y: zeroY + 4,
-    "text-anchor": "end",
-    class: "win-loss-axis-label"
-  });
-  zeroLabel.textContent = "0";
-  const bottomLabel = svgElement("text", {
-    x: margin.left - 9,
-    y: height - margin.bottom + 4,
-    "text-anchor": "end",
-    class: "win-loss-axis-label"
-  });
-  bottomLabel.textContent = `−${scaleBound}`;
-  svg.append(
-    svgElement("line", { x1: margin.left, y1: margin.top, x2: width - margin.right, y2: margin.top, class: "win-loss-grid-line" }),
-    svgElement("line", { x1: margin.left, y1: zeroY, x2: width - margin.right, y2: zeroY, class: "win-loss-zero-line" }),
-    svgElement("line", { x1: margin.left, y1: height - margin.bottom, x2: width - margin.right, y2: height - margin.bottom, class: "win-loss-grid-line" }),
-    topLabel,
-    zeroLabel,
-    bottomLabel
-  );
-  const line = svgElement("polyline", {
-    points: points.map((point) => `${point.x},${point.y}`).join(" "),
-    class: "win-loss-line"
-  });
-  svg.append(line);
+  const tickValues = [axisMax, Math.round((axisMin + axisMax) / 2), axisMin];
+  for (const [index, value] of tickValues.entries()) {
+    const y = yForMmr(value);
+    const label = svgElement("text", {
+      x: margin.left - 8,
+      y: y + 4,
+      "text-anchor": "end",
+      class: "win-loss-axis-label"
+    });
+    label.textContent = formatNumber(value);
+    svg.append(
+      svgElement("line", {
+        x1: margin.left,
+        y1: y,
+        x2: width - margin.right,
+        y2: y,
+        class: index === tickValues.length - 1 ? "win-loss-zero-line" : "win-loss-grid-line"
+      }),
+      label
+    );
+  }
 
-  for (const [index, point] of points.entries()) {
-    const hero = heroById.get(point.match.hero_id);
+  for (const [index, day] of days.entries()) {
+    const x = margin.left + ((day.day - firstDay) / 89) * plotWidth;
+    const y = yForMmr(day.mmr);
+    const hero = heroById.get(Number(day.lastMatch.hero_id));
     const heroName = hero?.localized_name || "Unknown hero";
-    const date = formatDate(point.match.start_time);
-    const label = `Game ${index + 1} of ${games.length}, ${point.won ? "win" : "loss"}, net ${point.net > 0 ? "+" : ""}${point.net}, ${heroName}, ${date}. Select for match analytics.`;
-    const marker = svgElement("g", {
-      class: "win-loss-point-group",
+    const date = new Date(day.day * 86400 * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+    const change = `${day.netChange > 0 ? "+" : ""}${formatNumber(day.netChange)}`;
+    const label = `${date}: estimated ${formatNumber(day.mmr)} MMR after ${day.wins} wins and ${day.losses} losses; ${change} MMR that day. ${heroName}. Select for match analytics.`;
+    const bar = svgElement("g", {
+      class: "win-loss-point-group mmr-bar-group",
       tabindex: 0,
       role: "button",
-      "aria-pressed": String(Number(point.match.match_id) === selectedTrendMatchId),
+      "aria-pressed": String(Number(day.lastMatch.match_id) === selectedTrendMatchId),
       "aria-label": label,
       "aria-describedby": "win-loss-tooltip"
     });
     const title = svgElement("title");
     title.textContent = label;
-    marker.append(
+    bar.append(
       title,
-      svgElement("circle", { cx: point.x, cy: point.y, r: 14, class: "win-loss-point-hit" }),
-      svgElement("circle", {
-        cx: point.x,
-        cy: point.y,
-        r: 6,
-        class: `win-loss-point ${point.won ? "win-loss-point-win" : "win-loss-point-loss"}`
+      svgElement("rect", {
+        x: x - Math.max(5, barWidth / 2),
+        y: margin.top,
+        width: Math.max(10, barWidth),
+        height: plotHeight,
+        class: "mmr-bar-hit"
+      }),
+      svgElement("rect", {
+        x: x - barWidth / 2,
+        y,
+        width: barWidth,
+        height: Math.max(1, baselineY - y),
+        rx: 1.5,
+        class: "mmr-bar"
       })
     );
     const showMatch = () => {
-      tooltip.textContent = `Game ${index + 1} · ${point.won ? "WIN" : "LOSS"} · Net ${point.net > 0 ? "+" : ""}${point.net} · ${heroName} · ${date} · Select for analytics`;
+      tooltip.textContent = `${date} · ${change} MMR · ${day.wins}W – ${day.losses}L · Estimated ${formatNumber(day.mmr)} · ${heroName}`;
       if (hero) {
         tooltipHero.src = `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${hero.name.replace("npc_dota_hero_", "")}.png`;
         tooltipHero.alt = `${heroName} portrait`;
@@ -1099,48 +1172,76 @@ function renderWinLossTrend(matches, message = "") {
       }
     };
     const resetTooltip = () => {
-      if (document.activeElement !== marker) {
-        tooltip.textContent = "Hover or focus to inspect a match; select a point to review stats and items.";
+      if (document.activeElement !== bar) {
+        tooltip.textContent = "Hover or focus a bar to inspect that day; select it to review a match.";
         tooltipHero.hidden = true;
       }
     };
     const selectMatch = () => {
-      selectedTrendMatchId = Number(point.match.match_id);
+      selectedTrendMatchId = Number(day.lastMatch.match_id);
       for (const pointGroup of svg.querySelectorAll(".win-loss-point-group")) {
-        pointGroup.setAttribute("aria-pressed", String(pointGroup === marker));
+        pointGroup.setAttribute("aria-pressed", String(pointGroup === bar));
       }
-      renderSelectedMatchReview(point.match, index + 1, games.length);
+      renderSelectedMatchReview(day.lastMatch, `${date} · RANKED MATCH · ESTIMATED ${change} MMR`);
     };
-    marker.addEventListener("pointerenter", showMatch);
-    marker.addEventListener("pointerleave", resetTooltip);
-    marker.addEventListener("focus", showMatch);
-    marker.addEventListener("blur", resetTooltip);
-    marker.addEventListener("click", selectMatch);
-    marker.addEventListener("keydown", (event) => {
+    bar.addEventListener("pointerenter", showMatch);
+    bar.addEventListener("pointerleave", resetTooltip);
+    bar.addEventListener("focus", showMatch);
+    bar.addEventListener("blur", resetTooltip);
+    bar.addEventListener("click", selectMatch);
+    bar.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       selectMatch();
     });
-    svg.append(marker);
+    svg.append(bar);
   }
 
   const firstLabel = svgElement("text", {
     x: margin.left,
-    y: height - 8,
+    y: height - 5,
     "text-anchor": "start",
     class: "win-loss-axis-label"
   });
-  firstLabel.textContent = "OLDER";
+  firstLabel.textContent = "90 DAYS AGO";
   const lastLabel = svgElement("text", {
     x: width - margin.right,
-    y: height - 8,
+    y: height - 5,
     "text-anchor": "end",
     class: "win-loss-axis-label"
   });
-  lastLabel.textContent = "NEWER";
+  lastLabel.textContent = "TODAY";
   svg.append(firstLabel, lastLabel);
   chart.append(svg);
 }
+
+$("#mmr-settings-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const status = $("#mmr-settings-status");
+  if (!signedInAccountId) {
+    status.textContent = "Sign in before saving MMR settings.";
+    return;
+  }
+  const settings = {
+    currentMmr: Number($("#mmr-current-input").value),
+    matchChange: Number($("#mmr-change-input").value)
+  };
+  if (!Number.isInteger(settings.currentMmr) || settings.currentMmr < 1 || settings.currentMmr > 20000
+    || !Number.isInteger(settings.matchChange) || settings.matchChange < 1 || settings.matchChange > 100) {
+    status.textContent = "Enter a current MMR from 1 to 20,000 and a ranked-game change from 1 to 100.";
+    return;
+  }
+  try {
+    localStorage.setItem(`${mmrSettingsStoragePrefix}${signedInAccountId}`, JSON.stringify(settings));
+  } catch (error) {
+    status.textContent = `MMR settings couldn't be saved in this browser: ${error.message}`;
+    return;
+  }
+  mmrSettings = settings;
+  status.textContent = "MMR settings saved in this browser for your Steam account.";
+  renderMmrTrend(mmrMatches, mmrMatches ? "" : "Loading ranked matches…");
+  if (historyLoaded) renderHistoryMatches();
+});
 
 function loadHeroItemPopularity(heroId) {
   const id = Number(heroId);
@@ -1196,7 +1297,7 @@ function appendMatchItemInventory(container, match) {
   container.append(list);
 }
 
-async function renderSelectedMatchReview(match, gameNumber, sampleSize) {
+async function renderSelectedMatchReview(match, labelText) {
   const container = $("#improvement-focus");
   const requestId = Number(match.match_id);
   const won = match.radiant_win === (Number(match.player_slot) < 128);
@@ -1217,7 +1318,7 @@ async function renderSelectedMatchReview(match, gameNumber, sampleSize) {
   ];
   const label = document.createElement("span");
   label.className = "improvement-pattern-label";
-  label.textContent = `GAME ${gameNumber} OF ${sampleSize} · ${won ? "WIN" : "LOSS"} · ${formatDate(match.start_time)}`;
+  label.textContent = `${labelText} · ${won ? "WIN" : "LOSS"}`;
   const title = document.createElement("h3");
   title.className = "improvement-metric";
   title.textContent = heroName;
@@ -1965,7 +2066,7 @@ $("#player-search-form").addEventListener("submit", (event) => {
 
 $("#overall-analysis-button").addEventListener("click", () => {
   selectedTrendMatchId = null;
-  for (const point of document.querySelectorAll(".win-loss-point-group")) {
+  for (const point of document.querySelectorAll(".mmr-bar-group")) {
     point.setAttribute("aria-pressed", "false");
   }
   $("#overall-analysis-button").hidden = true;
@@ -2018,6 +2119,7 @@ async function loadDashboard(accountId) {
   historyMatches = null;
   historyLoaded = false;
   historyRequestId += 1;
+  mmrMatches = null;
   heroById = new Map();
   selectedTrendMatchId = null;
   activeTrendMatches = null;
@@ -2028,6 +2130,21 @@ async function loadDashboard(accountId) {
   $("#most-played-hero-image").hidden = true;
   $("#highest-winrate-hero-image").hidden = true;
   $("#highest-winrate-hero-caption").textContent = "Requires at least 5 games";
+  $("#mmr-current-input").value = "";
+  $("#mmr-change-input").value = String(defaultMmrMatchChange);
+  try {
+    mmrSettings = readMmrSettings(accountId);
+    if (mmrSettings) {
+      $("#mmr-current-input").value = String(mmrSettings.currentMmr);
+      $("#mmr-change-input").value = String(mmrSettings.matchChange);
+      $("#mmr-settings-status").textContent = "Your MMR settings were loaded from this browser.";
+    } else {
+      $("#mmr-settings-status").textContent = "Set your current MMR to estimate its history. Saved in this browser.";
+    }
+  } catch (error) {
+    mmrSettings = null;
+    $("#mmr-settings-status").textContent = `Saved MMR settings couldn't be loaded: ${error.message} Enter them again to replace the saved values.`;
+  }
   showDashboard();
   renderFriends();
   selectedInsightHeroId = null;
@@ -2036,9 +2153,9 @@ async function loadDashboard(accountId) {
   setScoutMessage("#hero-performance", "Loading hero records…");
   setScoutMessage("#rank-history", "Loading rank history…");
   setScoutMessage("#party-chemistry", "Loading party stats…");
-  renderWinLossTrend(null, "Loading recent results…");
+  renderMmrTrend(null, "Loading ranked match history…");
   const errors = new Map();
-  const pending = new Set(["profile", "win/loss record", "recent matches", "hero names", "hero performance", "rank history", "party chemistry"]);
+  const pending = new Set(["profile", "win/loss record", "recent matches", "ranked match history", "hero names", "hero performance", "rank history", "party chemistry"]);
   const results = {
     matches: null,
     ranked: null,
@@ -2084,7 +2201,7 @@ async function loadDashboard(accountId) {
       const data = await apiJson(url);
       if (loadId !== dashboardLoadId) return;
       errors.delete(label);
-      onSuccess(data);
+      await onSuccess(data);
       updateDashboardErrors(errors, accountId, loadId);
     } catch (error) {
       if (loadId !== dashboardLoadId) return;
@@ -2149,7 +2266,6 @@ async function loadDashboard(accountId) {
       activeTrendMatches = matches;
       selectedTrendMatchId = null;
       renderRecentForm(matches);
-      renderWinLossTrend(matches);
       renderImprovementFocus(matches);
       if (historyLoaded) renderHistoryMatches();
       if (results.ranked !== null) renderPredictedRank(matches, results.ranked);
@@ -2159,12 +2275,42 @@ async function loadDashboard(accountId) {
       activeTrendMatches = null;
       selectedTrendMatchId = null;
       $("#overall-analysis-button").hidden = true;
-      renderWinLossTrend(null, "Recent match results couldn't be loaded right now. Use Retry above to try again.");
       setScoutMessage("#improvement-focus", "Recent match stats are unavailable right now.", true);
       $("#recent-form-summary").textContent = "Unavailable";
       $("#recent-form").replaceChildren();
       setLoadingPlaceholders(["#recent-form-summary"], false);
     }
+  );
+
+  const rankedMatchesRequest = request(
+    "ranked match history",
+    `https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/matches?limit=100`,
+    async (matches) => {
+      const allMatches = Array.isArray(matches) ? [...matches] : [];
+      const cutoff = Math.floor(Date.now() / 1000) - 90 * 86400;
+      const pageSize = 100;
+      const maxPages = 20;
+      let offset = allMatches.length;
+      let oldestMatchTime = allMatches.length ? Number(allMatches[allMatches.length - 1].start_time) : Infinity;
+      for (let page = 1; page < maxPages && allMatches.length >= pageSize && oldestMatchTime >= cutoff; page += 1) {
+        const nextPage = await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/matches?limit=${pageSize}&offset=${offset}`);
+        if (!Array.isArray(nextPage) || !nextPage.length) break;
+        allMatches.push(...nextPage);
+        offset += nextPage.length;
+        oldestMatchTime = Number(nextPage[nextPage.length - 1].start_time);
+        if (nextPage.length < pageSize) break;
+      }
+      if (allMatches.length >= pageSize * maxPages && oldestMatchTime >= cutoff) {
+        const probe = await apiJson(`https://api.opendota.com/api/players/${encodeURIComponent(accountId)}/matches?limit=1&offset=${offset}`);
+        if (Array.isArray(probe) && probe.length && Number(probe[0].start_time) >= cutoff) {
+          throw new Error("The 90-day history exceeds the 2,000-match safety limit. The chart cannot estimate all of it yet.");
+        }
+      }
+      mmrMatches = allMatches;
+      selectedTrendMatchId = null;
+      renderMmrTrend(mmrMatches);
+    },
+    (error) => renderMmrTrend(null, `Ranked match history couldn't be loaded: ${error.message}`)
   );
 
   const heroesRequest = request(
@@ -2173,7 +2319,7 @@ async function loadDashboard(accountId) {
     (heroes) => {
       heroById = new Map(heroes.map((hero) => [hero.id, hero]));
       populateHistoryHeroFilter();
-      if (results.matches) renderWinLossTrend(results.matches);
+      if (Array.isArray(mmrMatches)) renderMmrTrend(mmrMatches);
       if (historyLoaded) renderHistoryMatches();
       if (results.heroStats) {
         renderHeroPerformance(results.heroStats);
@@ -2218,7 +2364,7 @@ async function loadDashboard(accountId) {
     (error) => setScoutMessage("#party-chemistry", `Party history unavailable: ${error.message}`)
   );
 
-  await Promise.all([profileRequest, recordRequest, matchesRequest, heroesRequest, heroStatsRequest, ratingsRequest, peersRequest]);
+  await Promise.all([profileRequest, recordRequest, matchesRequest, rankedMatchesRequest, heroesRequest, heroStatsRequest, ratingsRequest, peersRequest]);
 }
 
 async function syncRecentGames() {

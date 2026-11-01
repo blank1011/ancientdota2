@@ -1075,7 +1075,7 @@ function renderMmrTrend(matches, message = "") {
     })
     .sort((a, b) => Number(a.match.start_time) - Number(b.match.start_time));
   if (!rankedGames.length) {
-    summary.textContent = `MMR baseline: ${formatNumber(mmrSettings.currentMmr)} · set ${formatDate(mmrSettings.baselineAt)}.`;
+    summary.textContent = `Estimated MMR: ${formatNumber(mmrSettings.currentMmr)} · baseline set ${formatDate(mmrSettings.baselineAt)}.`;
     reportValues[0].textContent = formatNumber(mmrSettings.currentMmr);
     reportValues[1].textContent = "0";
     reportValues[2].textContent = "+0";
@@ -1100,13 +1100,13 @@ function renderMmrTrend(matches, message = "") {
   const lossDeductions = losses * mmrSettings.matchChange;
   const netChange = rankedGames.reduce((total, game) => total + game.change, 0);
   const netLabel = `${netChange > 0 ? "+" : ""}${formatNumber(netChange)}`;
-  reportValues[0].textContent = formatNumber(mmrSettings.currentMmr);
+  reportValues[0].textContent = formatNumber(estimatedMmr);
   reportValues[1].textContent = netLabel;
   reportValues[1].classList.toggle("mmr-report-positive", netChange > 0);
   reportValues[1].classList.toggle("mmr-report-negative", netChange < 0);
   reportValues[2].textContent = `+${formatNumber(winGains)}`;
   reportValues[3].textContent = `−${formatNumber(lossDeductions)}`;
-  summary.textContent = `Estimated MMR: ${formatNumber(mmrSettings.currentMmr)} → ${formatNumber(estimatedMmr)} · ${rankedGames.length} ranked games since ${formatDate(mmrSettings.baselineAt)} · ${wins} wins / ${losses} losses`;
+  summary.textContent = `Baseline ${formatNumber(mmrSettings.currentMmr)} → estimated current ${formatNumber(estimatedMmr)} · ${netLabel} MMR since ${formatDate(mmrSettings.baselineAt)} · ${rankedGames.length} ranked games · ${wins} wins / ${losses} losses`;
 
   const margin = { top: 22, right: 16, bottom: 34, left: 58 };
   const minimumWidth = Math.max(580, chart.clientWidth || 0);
